@@ -1,6 +1,8 @@
 #include "malloc_internal.h"
+#include <sys/mman.h>
+#include <unistd.h>
 
-inline size_t get_page_size(void)
+static inline size_t get_page_size(void)
 {
 	static size_t page_size = 0;
 
@@ -22,15 +24,21 @@ void free_pages(void *addr, const size_t n)
 
 void *small_alloc(const size_t size)
 {
+	(void) size;
 	// TODO
+	return NULL;
 }
 
 void *medium_alloc(const size_t size)
 {
+	(void) size;
 	// TODO
+	return NULL;
 }
 
 void *large_alloc(const size_t size)
 {
+	(void) size;
 	// TODO
+	return NULL;
 }
