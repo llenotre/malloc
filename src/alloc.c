@@ -3,9 +3,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-static _block_t *small_bin = NULL;
-static _block_t *medium_bin = NULL;
-static _block_t *large_bin = NULL;
+_block_t *_small_bin = NULL;
+_block_t *_medium_bin = NULL;
+_block_t *_large_bin = NULL;
 
 static inline size_t _get_page_size(void)
 {
@@ -45,7 +45,7 @@ static _block_t *_alloc_block(const size_t pages)
 void *_small_alloc(const size_t size)
 {
 	(void) size;
-	(void) small_bin;
+	(void) _small_bin;
 	// TODO
 	return NULL;
 }
@@ -53,7 +53,7 @@ void *_small_alloc(const size_t size)
 void *_medium_alloc(const size_t size)
 {
 	(void) size;
-	(void) medium_bin;
+	(void) _medium_bin;
 	// TODO
 	return NULL;
 }
@@ -64,8 +64,8 @@ void *_large_alloc(const size_t size)
 
 	if(!(b = _alloc_block(CEIL_DIVISION(size, _get_page_size()))))
 		return NULL;
-	b->next = large_bin;
-	large_bin = b;
+	b->next = _large_bin;
+	_large_bin = b;
 	b->first_chunk->used = 1;
 	return b->first_chunk->data;
 }
