@@ -35,6 +35,9 @@ typedef struct _block
 void *_alloc_pages(size_t n);
 void _free_pages(void *addr, size_t n);
 
+_block_t *_alloc_block(const size_t pages);
+void _free_block(_block_t *b);
+
 void *_small_alloc(size_t size);
 void *_medium_alloc(size_t size);
 void *_large_alloc(size_t size);

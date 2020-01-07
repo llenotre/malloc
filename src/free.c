@@ -7,6 +7,7 @@
 void free(void *ptr)
 {
 	_chunk_t *c;
+	_block_t *b;
 
 	if(!ptr)
 		return;
@@ -25,7 +26,8 @@ void free(void *ptr)
 	}
 	if(!c->prev && !c->next)
 	{
-		// TODO Free block
+		b = (void *) ((void *) c - (void *) ((_block_t *) 0)->first_chunk);
+		_free_block(b);
 		return;
 	}
 	c->used = 0;

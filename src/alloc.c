@@ -27,7 +27,7 @@ void _free_pages(void *addr, const size_t n)
 	munmap(addr, n * _get_page_size());
 }
 
-static _block_t *_alloc_block(const size_t pages)
+_block_t *_alloc_block(const size_t pages)
 {
 	_block_t *b;
 
@@ -40,6 +40,24 @@ static _block_t *_alloc_block(const size_t pages)
 	b->first_chunk->magic = _MALLOC_CHUNK_MAGIC;
 #endif
 	return b;
+}
+
+void _free_block(_block_t *b)
+{
+	if(b->prev)
+		b->prev->next = b->next;
+	else
+	{
+		if(b == _small_bin)
+			_small_bin = _small_bin->next;
+		else if(b == _medium_bin)
+			_medium_bin = _medium_bin->next;
+		else if(b == _large_bin)
+			_large_bin = _large_bin->next;
+	}
+	if(b->next)
+		b->next->prev = b->prev;
+	_free_pages(b, b->pages);
 }
 
 void *_small_alloc(const size_t size)
