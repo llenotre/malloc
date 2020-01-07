@@ -4,12 +4,17 @@
 __attribute__((malloc))
 void *malloc(const size_t size)
 {
+	void *ptr;
+
 	if(size == 0)
 		return NULL;
 	if(size < _SMALL_BIN_MAX)
-		return small_alloc(size);
+		ptr = small_alloc(size);
 	else if(size < _MEDIUM_BIN_MAX)
-		return medium_alloc(size);
+		ptr = medium_alloc(size);
 	else
-		return large_alloc(size);
+		ptr = large_alloc(size);
+	if(ptr)
+		bzero(ptr, size);
+	return ptr;
 }
