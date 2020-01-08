@@ -6,12 +6,12 @@
 
 void free(void *ptr)
 {
-	_chunk_t *c;
+	_chunk_hdr_t *c;
 	_block_t *b;
 
 	if(!ptr)
 		return;
-	c = ptr - sizeof(_chunk_t);
+	c = GET_CHUNK(ptr);
 #ifdef _MALLOC_CHUNK_MAGIC
 	if(c->magic != _MALLOC_CHUNK_MAGIC)
 	{
@@ -24,23 +24,26 @@ void free(void *ptr)
 		dprintf(STDERR_FILENO, "free(): invalid free\n");
 		abort();
 	}
-	if(!c->prev && !c->next)
-	{
-		b = (void *) ((void *) c - (void *) ((_block_t *) 0)->first_chunk);
-		_free_block(b);
-		return;
-	}
-	c->used = 0;
 	if(c->next && !c->next->used)
 	{
 		if((c->next->prev = c->prev))
 			c->next->prev->next = c->next;
-		c->next->length += sizeof(_chunk_t) + c->length;
+		c->length += sizeof(_chunk_hdr_t) + c->next->length;
 	}
 	if(c->prev && !c->prev->used)
 	{
 		if((c->prev->next = c->next))
 			c->prev->next->prev = c->prev;
-		c->prev->length += sizeof(_chunk_t) + c->length;
+		c->prev->length += sizeof(_chunk_hdr_t) + c->length;
+	}
+	c->used = 0;
+	// TODO Add `c` to bucket
+	while(c->prev && !c->used)
+		c = c->prev;
+	if(!c->used && !c->next)
+	{
+		// TODO Remove `c` from bucket
+		b = (void *) c - OFFSET_OF(_block_t, first_chunk);
+		_free_block(b);
 	}
 }
