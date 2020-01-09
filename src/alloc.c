@@ -16,8 +16,18 @@ static inline size_t _get_page_size(void)
 {
 	static size_t page_size = 0;
 
-	if(__builtin_expect(!!page_size, 1))
+	if(__builtin_expect((page_size == 0), 1))
+	{
 		page_size = sysconf(_SC_PAGE_SIZE);
+#ifdef _MALLOC_DEBUG
+		dprintf(STDERR_FILENO, "malloc: page size: %zu bytes\n", page_size);
+#endif
+	}
+	if(page_size == 0)
+	{
+		dprintf(STDERR_FILENO, "abort: _SC_PAGE_SIZE == 0\n");
+		abort();
+	}
 	return page_size;
 }
 
@@ -42,8 +52,7 @@ _block_t *_alloc_block(const size_t size)
 		return NULL;
 	bzero(b, sizeof(_block_t));
 	b->pages = pages;
-	b->first_chunk->length = pages * _get_page_size()
-		- OFFSET_OF(_block_t, first_chunk);
+	b->first_chunk->length = size;
 #ifdef _MALLOC_CHUNK_MAGIC
 	b->first_chunk->magic = _MALLOC_CHUNK_MAGIC;
 #endif
@@ -79,7 +88,8 @@ static _free_chunk_t **get_small_bucket(const size_t size)
 	size_t i = 0;
 	_free_chunk_t **chunk;
 
-	while(((size_t) 1 << i) < size || !_small_buckets[i])
+	while(i < _SMALL_BUCKETS_COUNT
+		&& (((size_t) 1 << i) < size || !_small_buckets[i]))
 		++i;
 	if(i < _SMALL_BUCKETS_COUNT)
 		chunk = &_small_buckets[i];
@@ -115,14 +125,18 @@ void _bucket_unlink(_free_chunk_t *chunk)
 
 static void _split_chunk(_free_chunk_t *chunk, const size_t size)
 {
+	size_t l;
 	_free_chunk_t *new_chunk;
 
+	l = chunk->hdr.length;
+	chunk->hdr.length = size;
+	chunk->hdr.used = 1;
 	if(chunk->hdr.length <= size + sizeof(_chunk_hdr_t))
 		return;
 #ifdef _MALLOC_CHUNK_MAGIC
 	if(chunk->hdr.magic != _MALLOC_CHUNK_MAGIC)
 	{
-		dprintf(STDERR_FILENO, "%s(): corrupted block\n", __func__);
+		dprintf(STDERR_FILENO, "abort: %s(): corrupted block\n", __func__);
 		abort();
 	}
 #endif
@@ -131,14 +145,12 @@ static void _split_chunk(_free_chunk_t *chunk, const size_t size)
 		new_chunk->hdr.prev->next = (_chunk_hdr_t *) new_chunk;
 	if((new_chunk->hdr.next = (_chunk_hdr_t *) chunk->hdr.next))
 		new_chunk->hdr.next->prev = (_chunk_hdr_t *) new_chunk;
-	new_chunk->hdr.length = chunk->hdr.length - (size + sizeof(_chunk_hdr_t));
+	new_chunk->hdr.length = l - (size + sizeof(_chunk_hdr_t));
 	new_chunk->hdr.used = 0;
 #ifdef _MALLOC_CHUNK_MAGIC
 	new_chunk->hdr.magic = _MALLOC_CHUNK_MAGIC;
 #endif
 	_bucket_link(new_chunk);
-	chunk->hdr.length = size;
-	chunk->hdr.used = 1;
 }
 
 void *_small_alloc(const size_t size)

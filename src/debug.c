@@ -1,6 +1,8 @@
 #include "malloc.h"
 #include "malloc_internal.h"
 
+#include <stdio.h>
+
 #ifdef _MALLOC_DEBUG
 extern _block_t *_small_bin;
 extern _block_t *_medium_bin;
@@ -8,19 +10,21 @@ extern _block_t *_large_bin;
 
 static size_t debug_print(const char *str, _block_t *b)
 {
-	_chunk_t *c;
+	_chunk_hdr_t *c;
 	size_t total = 0;
 
 	while(b)
 	{
 		printf("%s: %p\n", str, b);
-		c = b->first_chunk;
-		while(c)
+		if((c = b->first_chunk)->used)
 		{
-			printf("%p - %p: %zu bytes\n",
-				c->data, c->data + c->length, c->length);
-			total += c->length;
-			c = c->next;
+			while(c)
+			{
+				printf("%p - %p: %zu bytes\n", ((_used_chunk_t *) c)->data,
+					((_used_chunk_t *) c)->data + c->length, c->length);
+				total += c->length;
+				c = c->next;
+			}
 		}
 		b = b->next;
 	}
