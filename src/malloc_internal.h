@@ -1,6 +1,7 @@
 #ifndef _MALLOC_INTERNAL_H
 # define _MALLOC_INTERNAL_H
 
+# include <stdint.h>
 # include <string.h>
 
 # define _FIRST_SMALL_BUCKET_SIZE	8
@@ -13,11 +14,10 @@
 # define _SMALL_BLOCK_PAGES		2
 # define _MEDIUM_BLOCK_PAGES	4
 
-# define _MALLOC_CHUNK_MAGIC\
-	(0x5ea310c36f405b33 & (sizeof(long) == 8 ? ~0 : 0xffffffff))
+# define _MALLOC_CHUNK_MAGIC	(0x5ea310c36f405b33 & (sizeof(long) == 8\
+	? ~((unsigned long) 0) : 0xffffffff))
 
-# define CEIL_DIVISION(n0, n1)\
-	((n0) % (n1) == 0 ? (n0) / (n1) : (n0) / (n1) + 1)
+# define CEIL_DIVISION(n0, n1)	((n0) / (n1) + !!((n0) % (n1)))
 # define OFFSET_OF(type, field)	((uintptr_t) &((type *) 0)->field)
 
 # define GET_CHUNK(ptr)	((ptr) - OFFSET_OF(_used_chunk_t, data))

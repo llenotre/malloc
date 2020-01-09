@@ -15,15 +15,16 @@ void free(void *ptr)
 #ifdef _MALLOC_CHUNK_MAGIC
 	if(c->magic != _MALLOC_CHUNK_MAGIC)
 	{
-		dprintf(STDERR_FILENO, "free(): corrupted chunk\n");
+		dprintf(STDERR_FILENO, "%s(): corrupted chunk\n", __func__);
 		abort();
 	}
 #endif
 	if(!c->used)
 	{
-		dprintf(STDERR_FILENO, "free(): invalid free\n");
+		dprintf(STDERR_FILENO, "%s(): invalid free\n", __func__);
 		abort();
 	}
+	c->used = 0;
 	if(c->next && !c->next->used)
 	{
 		if((c->next->prev = c->prev))
@@ -36,13 +37,12 @@ void free(void *ptr)
 			c->prev->next->prev = c->prev;
 		c->prev->length += sizeof(_chunk_hdr_t) + c->length;
 	}
-	c->used = 0;
-	// TODO Add `c` to bucket
+	_bucket_link((_free_chunk_t *) c);
 	while(c->prev && !c->used)
 		c = c->prev;
 	if(!c->used && !c->next)
 	{
-		// TODO Remove `c` from bucket
+		_bucket_unlink((_free_chunk_t *) c);
 		b = (void *) c - OFFSET_OF(_block_t, first_chunk);
 		_free_block(b);
 	}
