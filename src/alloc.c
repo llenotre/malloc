@@ -10,7 +10,6 @@ _block_t *_medium_bin = NULL;
 _block_t *_large_bin = NULL;
 
 _free_chunk_t *_small_buckets[_SMALL_BUCKETS_COUNT];
-_free_chunk_t *_small_remaining;
 
 static inline size_t _get_page_size(void)
 {
@@ -61,15 +60,12 @@ void _free_block(_block_t *b)
 {
 	if(b->prev)
 		b->prev->next = b->next;
-	else
-	{
-		if(b == _small_bin)
-			_small_bin = _small_bin->next;
-		else if(b == _medium_bin)
-			_medium_bin = _medium_bin->next;
-		else if(b == _large_bin)
-			_large_bin = _large_bin->next;
-	}
+	else if(b == _small_bin)
+		_small_bin = b->next;
+	else if(b == _medium_bin)
+		_medium_bin = b->next;
+	else if(b == _large_bin)
+		_large_bin = b->next;
 	if(b->next)
 		b->next->prev = b->prev;
 	_free_pages(b, b->pages);
@@ -81,27 +77,22 @@ static inline void _bin_link(_block_t **bin, _block_t *block)
 	*bin = block;
 }
 
-static _free_chunk_t **get_small_bucket(const size_t size)
+static _free_chunk_t **get_small_bucket(const size_t size, const int insert)
 {
 	size_t i = 0;
-	_free_chunk_t **bucket;
 
-	while(i < _SMALL_BUCKETS_COUNT
-			&& ((size_t) _FIRST_SMALL_BUCKET_SIZE << i) < size)
-		++i;
-	printf("bucket: ");
-	if(i < _SMALL_BUCKETS_COUNT)
+	if(insert)
 	{
-		printf("%zu", i);
-		bucket = &_small_buckets[i];
+		while((_FIRST_SMALL_BUCKET_SIZE << (i + 1)) < size
+			&& i < _SMALL_BUCKETS_COUNT - 1)
+			++i;
 	}
 	else
-	{
-		printf("remaining");
-		bucket = &_small_remaining;
-	}
-	printf("\n");
-	return bucket;
+		while((!_small_buckets[i]
+			|| (_FIRST_SMALL_BUCKET_SIZE << (i + 1)) < size)
+				&& i < _SMALL_BUCKETS_COUNT - 1)
+			++i;
+	return &_small_buckets[i];
 }
 
 // TODO Handle medium
@@ -109,11 +100,12 @@ void _bucket_link(_free_chunk_t *chunk)
 {
 	_free_chunk_t **bucket;
 
-	if(!(bucket = get_small_bucket(chunk->hdr.length)))
+	if(!(bucket = get_small_bucket(chunk->hdr.length, 1)))
 	{
 		// TODO Error?
 		return;
 	}
+	chunk->prev_free = NULL;
 	chunk->next_free = *bucket;
 	*bucket = chunk;
 }
@@ -121,24 +113,24 @@ void _bucket_link(_free_chunk_t *chunk)
 // TODO Handle medium
 void _bucket_unlink(_free_chunk_t *chunk)
 {
-	_free_chunk_t **bucket;
+	size_t i = 0;
 
-	if(!(bucket = get_small_bucket(chunk->hdr.length)))
-		return;
-	if(chunk == *bucket)
-		*bucket = chunk->next_free;
+	if(chunk->prev_free)
+		chunk->prev_free->next_free = chunk->next_free;
+	if(chunk->next_free)
+		chunk->next_free->prev_free = chunk->prev_free;
+	chunk->prev_free = NULL;
+	chunk->next_free = NULL;
+	for(; i < _SMALL_BUCKETS_COUNT; ++i)
+		if(chunk == _small_buckets[i])
+			_small_buckets[i] = chunk->next_free;
 }
 
-static void _split_chunk(_free_chunk_t *chunk, const size_t size)
+static void _alloc_chunk(_free_chunk_t *chunk, const size_t size)
 {
 	size_t l;
 	_free_chunk_t *new_chunk;
 
-	if(chunk->hdr.length <= size + sizeof(_chunk_hdr_t))
-		return;
-	l = chunk->hdr.length;
-	chunk->hdr.length = size;
-	chunk->hdr.used = 1;
 #ifdef _MALLOC_CHUNK_MAGIC
 	if(chunk->hdr.magic != _MALLOC_CHUNK_MAGIC)
 	{
@@ -146,11 +138,18 @@ static void _split_chunk(_free_chunk_t *chunk, const size_t size)
 		abort();
 	}
 #endif
+	chunk->hdr.used = 1;
+	_bucket_unlink(chunk);
+	// TODO Add chunk min size?
+	if(chunk->hdr.length <= size + sizeof(_chunk_hdr_t))
+		return;
+	l = chunk->hdr.length;
+	chunk->hdr.length = size;
 	new_chunk = (_free_chunk_t *) (((_used_chunk_t *) chunk)->data + size);
-	if((new_chunk->hdr.prev = (_chunk_hdr_t *) chunk))
-		new_chunk->hdr.prev->next = (_chunk_hdr_t *) new_chunk;
 	if((new_chunk->hdr.next = (_chunk_hdr_t *) chunk->hdr.next))
 		new_chunk->hdr.next->prev = (_chunk_hdr_t *) new_chunk;
+	if((new_chunk->hdr.prev = (_chunk_hdr_t *) chunk))
+		new_chunk->hdr.prev->next = (_chunk_hdr_t *) new_chunk;
 	new_chunk->hdr.length = l - (size + sizeof(_chunk_hdr_t));
 	new_chunk->hdr.used = 0;
 #ifdef _MALLOC_CHUNK_MAGIC
@@ -165,20 +164,16 @@ void *_small_alloc(const size_t size)
 	_block_t *b;
 	_free_chunk_t *chunk;
 
-	if(!(bucket = get_small_bucket(size)) || !*bucket)
+	if(!(bucket = get_small_bucket(size, 0)) || !*bucket)
 	{
-		printf("allocating a new block\n");
 		if(!(b = _alloc_block(_SMALL_BLOCK_PAGES)))
 			return NULL;
 		_bin_link(&_small_bin, b);
 		chunk = (void *) b->first_chunk;
 	}
 	else
-	{
 		chunk = *bucket;
-		_bucket_unlink(chunk);
-	}
-	_split_chunk(chunk, size);
+	_alloc_chunk(chunk, size);
 	return ((_used_chunk_t *) chunk)->data;
 }
 

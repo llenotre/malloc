@@ -16,15 +16,16 @@ static size_t debug_print(const char *str, _block_t *b)
 	while(b)
 	{
 		printf("%s: %p\n", str, b);
-		if((c = b->first_chunk)->used)
+		c = b->first_chunk;
+		while(c)
 		{
-			while(c)
+			if(c->used)
 			{
 				printf("%p - %p: %zu bytes\n", ((_used_chunk_t *) c)->data,
 					((_used_chunk_t *) c)->data + c->length, c->length);
 				total += c->length;
-				c = c->next;
 			}
+			c = c->next;
 		}
 		b = b->next;
 	}

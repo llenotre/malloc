@@ -38,12 +38,15 @@ void free(void *ptr)
 		c->prev->length += sizeof(_chunk_hdr_t) + c->length;
 	}
 	_bucket_link((_free_chunk_t *) c);
-	while(c->prev && !c->used)
-		c = c->prev;
-	if(!c->used && !c->next)
+	if(c->next && c->next->used)
+		return;
+	while(c->prev)
 	{
-		_bucket_unlink((_free_chunk_t *) c);
-		b = (void *) c - OFFSET_OF(_block_t, first_chunk);
-		_free_block(b);
+		if(c->used)
+			return;
+		c = c->prev;
 	}
+	_bucket_unlink((_free_chunk_t *) c);
+	b = (void *) c - OFFSET_OF(_block_t, first_chunk);
+	_free_block(b);
 }

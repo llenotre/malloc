@@ -4,15 +4,15 @@
 # include <stdint.h>
 # include <string.h>
 
-# define _FIRST_SMALL_BUCKET_SIZE	8
-# define _SMALL_BUCKETS_COUNT		6
+# define _FIRST_SMALL_BUCKET_SIZE	((size_t) 8)
+# define _SMALL_BUCKETS_COUNT		((size_t) 6)
 
 # define _SMALL_BIN_MAX\
 	(_FIRST_SMALL_BUCKET_SIZE << (_SMALL_BUCKETS_COUNT - 1))
 # define _MEDIUM_BIN_MAX	262144
 
-# define _SMALL_BLOCK_PAGES		2
-# define _MEDIUM_BLOCK_PAGES	4
+# define _SMALL_BLOCK_PAGES		((size_t) 2)
+# define _MEDIUM_BLOCK_PAGES	((size_t) 4)
 
 # define _MALLOC_CHUNK_MAGIC	(0x5ea310c36f405b33 & (sizeof(long) == 8\
 	? ~((unsigned long) 0) : 0xffffffff))
@@ -42,7 +42,7 @@ typedef struct _used_chunk
 typedef struct _free_chunk
 {
 	_chunk_hdr_t hdr;
-	struct _free_chunk *next_free;
+	struct _free_chunk *prev_free, *next_free;
 } _free_chunk_t;
 
 typedef struct _block
