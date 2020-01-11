@@ -35,4 +35,7 @@ fclean: clean
 
 re: fclean all
 
+unit_test: $(NAME)
+	env DIR=unit_test/ oil_build all
+
 .PHONY: all clean fclean re
