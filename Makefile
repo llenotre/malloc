@@ -12,6 +12,8 @@ OBJ_DIR = obj/
 OBJ := $(patsubst $(SRC_DIR)%.c,$(OBJ_DIR)%.o,$(SRC))
 OBJ_DIRS := $(patsubst $(SRC_DIR)%,$(OBJ_DIR)%,$(DIRS))
 
+UNIT_TESTS := $(shell find unit_test/ -type f -name "*.c")
+
 all: $(NAME) tags
 
 $(OBJ_DIRS):
@@ -35,7 +37,10 @@ fclean: clean
 
 re: fclean all
 
-unit_test: $(NAME)
-	env DIR=unit_test/ oil_build all
+unit_test/%.test: unit_test/%.c $(NAME)
+	$(CC) $(CFLAGS) $(NAME) $< /usr/local/lib/oil_tester.a -o $@
+
+test: $(UNIT_TESTS:.c=.test)
+	oil_tester unit_test/
 
 .PHONY: all clean fclean re
