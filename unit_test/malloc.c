@@ -105,15 +105,15 @@ static void stack_(const size_t n)
 {
 	void *p;
 
-	if(!(p = malloc(n)))
+	if(!(p = malloc(128)))
 		OIL_FAIL();
-	stack_(n);
+	stack_(n - 1);
 	free(p);
 }
 
 OIL_TEST(stack_free_test)
 {
-	stack_(ALLOC_COUNT);
+	stack_(64);
 	OIL_PASS();
 }
 

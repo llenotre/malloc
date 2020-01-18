@@ -128,10 +128,10 @@ void _bucket_unlink(_free_chunk_t *chunk)
 			_small_buckets[i] = chunk->next_free;
 }
 
-static void _alloc_chunk(_free_chunk_t *chunk, const size_t size)
+static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 {
 	_free_chunk_t *new_chunk;
-	size_t l;
+	size_t new_len, l;
 
 #ifdef _MALLOC_CHUNK_MAGIC
 	if(chunk->hdr.magic != _MALLOC_CHUNK_MAGIC)
@@ -143,7 +143,9 @@ static void _alloc_chunk(_free_chunk_t *chunk, const size_t size)
 	chunk->hdr.used = 1;
 	_bucket_unlink(chunk);
 	new_chunk = (_free_chunk_t *) UP_ALIGN(CHUNK_DATA(chunk) + size, ALIGNMENT);
-	if(chunk->hdr.length <= CHUNK_HDR_SIZE(new_chunk) + MAX(ALIGNMENT, size))
+	size = MAX(ALIGNMENT, ((void *) new_chunk - CHUNK_DATA(chunk)));
+	new_len = size + CHUNK_HDR_SIZE(new_chunk);
+	if(chunk->hdr.length <= new_len + ALIGNMENT)
 		return;
 	l = chunk->hdr.length;
 	chunk->hdr.length = size;
@@ -151,7 +153,7 @@ static void _alloc_chunk(_free_chunk_t *chunk, const size_t size)
 		new_chunk->hdr.next->prev = (_chunk_hdr_t *) new_chunk;
 	if((new_chunk->hdr.prev = (_chunk_hdr_t *) chunk))
 		new_chunk->hdr.prev->next = (_chunk_hdr_t *) new_chunk;
-	new_chunk->hdr.length = l - (size + CHUNK_HDR_SIZE(new_chunk));
+	new_chunk->hdr.length = l - new_len;
 	new_chunk->hdr.used = 0;
 #ifdef _MALLOC_CHUNK_MAGIC
 	new_chunk->hdr.magic = _MALLOC_CHUNK_MAGIC;
@@ -175,7 +177,7 @@ void *_small_alloc(const size_t size)
 	else
 		chunk = *bucket;
 	_alloc_chunk(chunk, size);
-	return ((_used_chunk_t *) chunk)->data;
+	return CHUNK_DATA(chunk);
 }
 
 void *_medium_alloc(const size_t size)
@@ -198,5 +200,5 @@ void *_large_alloc(const size_t size)
 	_bin_link(&_large_bin, b);
 	first_chunk = BLOCK_DATA(b);
 	first_chunk->used = 1;
-	return ((_used_chunk_t *) first_chunk)->data;
+	return CHUNK_DATA(first_chunk);
 }
