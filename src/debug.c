@@ -16,7 +16,7 @@ static size_t debug_print(const char *str, _block_t *b)
 	while(b)
 	{
 		printf("%s: %p\n", str, b);
-		c = b->first_chunk;
+		c = BLOCK_DATA(b);
 		while(c)
 		{
 			if(c->used)

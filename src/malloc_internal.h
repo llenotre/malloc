@@ -14,13 +14,25 @@
 # define _SMALL_BLOCK_PAGES		((size_t) 2)
 # define _MEDIUM_BLOCK_PAGES	((size_t) 4)
 
+# define ALIGNMENT	16
+
 # define _MALLOC_CHUNK_MAGIC	(0x5ea310c36f405b33 & (sizeof(long) == 8\
 	? ~((unsigned long) 0) : 0xffffffff))
 
 # define CEIL_DIVISION(n0, n1)	((n0) / (n1) + !!((n0) % (n1)))
-# define OFFSET_OF(type, field)	((uintptr_t) &((type *) 0)->field)
+# define MAX(n0, n1)			((n0) >= (n1) ? (n0) : (n1))
+# define DOWN_ALIGN(ptr, n)		((void *) ((uintptr_t) (ptr) & ~((n) - 1)))
+// TODO Do not add `n` if ptr was already aligned
+# define UP_ALIGN(ptr, n)		(DOWN_ALIGN(ptr, n) + (n))
 
-# define GET_CHUNK(ptr)	((ptr) - OFFSET_OF(_used_chunk_t, data))
+# define BLOCK_DATA(b)		UP_ALIGN(((_block_t *) (b))->data, ALIGNMENT)
+# define CHUNK_DATA(c)		UP_ALIGN(((_used_chunk_t *) (c))->data, ALIGNMENT)
+
+# define BLOCK_HDR_SIZE(b)	((uintptr_t) (BLOCK_DATA(b) - (void *) (b)))
+# define CHUNK_HDR_SIZE(c)	((uintptr_t) (CHUNK_DATA(c) - (void *) (c)))
+
+# define GET_BLOCK(chunk)	((void *) ((void *) (chunk) - BLOCK_DATA(NULL)))
+# define GET_CHUNK(ptr)		((void *) ((void *) (ptr) - CHUNK_DATA(NULL)))
 
 typedef struct _chunk_hdr
 {
@@ -50,7 +62,7 @@ typedef struct _block
 	struct _block *prev, *next;
 
 	size_t pages;
-	_chunk_hdr_t first_chunk[1];
+	char data[0];
 } _block_t;
 
 void *_alloc_pages(size_t n);

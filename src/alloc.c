@@ -44,14 +44,16 @@ void _free_pages(void *addr, const size_t n)
 _block_t *_alloc_block(const size_t pages)
 {
 	_block_t *b;
+	_chunk_hdr_t *first_chunk;
 
 	if(pages == 0 || !(b = _alloc_pages(pages)))
 		return NULL;
-	bzero(b, sizeof(_block_t));
+	bzero(b, BLOCK_HDR_SIZE(b));
 	b->pages = pages;
-	b->first_chunk->length = pages * _get_page_size() - sizeof(_block_t);
+	first_chunk = BLOCK_DATA(b);
+	first_chunk->length = pages * _get_page_size() - BLOCK_HDR_SIZE(b);
 #ifdef _MALLOC_CHUNK_MAGIC
-	b->first_chunk->magic = _MALLOC_CHUNK_MAGIC;
+	first_chunk->magic = _MALLOC_CHUNK_MAGIC;
 #endif
 	return b;
 }
@@ -128,8 +130,8 @@ void _bucket_unlink(_free_chunk_t *chunk)
 
 static void _alloc_chunk(_free_chunk_t *chunk, const size_t size)
 {
-	size_t l;
 	_free_chunk_t *new_chunk;
+	size_t l;
 
 #ifdef _MALLOC_CHUNK_MAGIC
 	if(chunk->hdr.magic != _MALLOC_CHUNK_MAGIC)
@@ -140,17 +142,16 @@ static void _alloc_chunk(_free_chunk_t *chunk, const size_t size)
 #endif
 	chunk->hdr.used = 1;
 	_bucket_unlink(chunk);
-	// TODO Add chunk min size?
-	if(chunk->hdr.length <= size + sizeof(_chunk_hdr_t))
+	new_chunk = (_free_chunk_t *) UP_ALIGN(CHUNK_DATA(chunk) + size, ALIGNMENT);
+	if(chunk->hdr.length <= CHUNK_HDR_SIZE(new_chunk) + MAX(ALIGNMENT, size))
 		return;
 	l = chunk->hdr.length;
 	chunk->hdr.length = size;
-	new_chunk = (_free_chunk_t *) (((_used_chunk_t *) chunk)->data + size);
 	if((new_chunk->hdr.next = (_chunk_hdr_t *) chunk->hdr.next))
 		new_chunk->hdr.next->prev = (_chunk_hdr_t *) new_chunk;
 	if((new_chunk->hdr.prev = (_chunk_hdr_t *) chunk))
 		new_chunk->hdr.prev->next = (_chunk_hdr_t *) new_chunk;
-	new_chunk->hdr.length = l - (size + sizeof(_chunk_hdr_t));
+	new_chunk->hdr.length = l - (size + CHUNK_HDR_SIZE(new_chunk));
 	new_chunk->hdr.used = 0;
 #ifdef _MALLOC_CHUNK_MAGIC
 	new_chunk->hdr.magic = _MALLOC_CHUNK_MAGIC;
@@ -169,7 +170,7 @@ void *_small_alloc(const size_t size)
 		if(!(b = _alloc_block(_SMALL_BLOCK_PAGES)))
 			return NULL;
 		_bin_link(&_small_bin, b);
-		chunk = (void *) b->first_chunk;
+		chunk = BLOCK_DATA(b);
 	}
 	else
 		chunk = *bucket;
@@ -186,11 +187,16 @@ void *_medium_alloc(const size_t size)
 
 void *_large_alloc(const size_t size)
 {
+	size_t min_size;
 	_block_t *b;
+	_chunk_hdr_t *first_chunk;
 
-	if(!(b = _alloc_block(CEIL_DIVISION(size, _get_page_size()))))
+	min_size = BLOCK_HDR_SIZE(NULL) + CHUNK_HDR_SIZE(BLOCK_HDR_SIZE(NULL))
+		+ size;
+	if(!(b = _alloc_block(CEIL_DIVISION(min_size, _get_page_size()))))
 		return NULL;
 	_bin_link(&_large_bin, b);
-	b->first_chunk->used = 1;
-	return ((_used_chunk_t *) b->first_chunk)->data;
+	first_chunk = BLOCK_DATA(b);
+	first_chunk->used = 1;
+	return ((_used_chunk_t *) first_chunk)->data;
 }

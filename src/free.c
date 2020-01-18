@@ -47,6 +47,6 @@ void free(void *ptr)
 		c = c->prev;
 	}
 	_bucket_unlink((_free_chunk_t *) c);
-	b = (void *) c - OFFSET_OF(_block_t, first_chunk);
+	b = GET_BLOCK(c);
 	_free_block(b);
 }
