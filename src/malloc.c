@@ -1,6 +1,13 @@
 #include "malloc.h"
 #include "malloc_internal.h"
 
+/*
+ * Allocates a chunk of memory of size `size` and returns a pointer to the
+ * beginning. Pointer is suitably aligned to fit any built-in type.
+ *
+ * Memory chunk is cleared before being returned.
+ * If a size of zero is given, `NULL` is returned.
+ */
 __attribute__((malloc))
 void *malloc(const size_t size)
 {

@@ -4,6 +4,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+/*
+ * Frees the given memory chunk.
+ * Does nothing if `ptr` is `NULL`.
+ *
+ * The function shall make the current process abort
+ * if the given `ptr` is invalid.
+ */
 void free(void *ptr)
 {
 	_chunk_hdr_t *c;

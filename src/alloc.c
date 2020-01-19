@@ -5,12 +5,48 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+/*
+ * This file handles internal operations for the allocator.
+ *
+ * Allocations are stored into linked lists of chunks. Every chunk is allocated
+ * according to the value into `ALIGNMENT`.
+ *
+ * Chunks are contained into blocks which represent the memory regions given by
+ * the kernel.
+ * Blocks are sorted into bins according to the size of the allocations they can
+ * handle.
+ *
+ * - _small_bin: size < _SMALL_BIN_MAX
+ * - _medium_bin: size < _MEDIUM_BIN_MAX
+ * - _large_bin: size >= _MEDIUM_BIN_MAX
+ *
+ * Blocks in `_large_bin` contain only one allocation which can be several
+ * pages large.
+ *
+ * _MALLOC_CHUNK_MAGIC is a magic number used in chunk structures to ensure that
+ * chunks aren't overwritten. If the value has been changed between two
+ * operations of the allocator, the current process shall abort.
+ */
+
+/*
+ * Bins containing the list of allocated blocks
+ */
 _block_t *_small_bin = NULL;
 _block_t *_medium_bin = NULL;
 _block_t *_large_bin = NULL;
 
+/*
+ * Buckets containing lists of free chunks.
+ * Lists are sorted according to the size of the empty chunk
+ *
+ * A chunk must be at least `n` bytes large to fit in a bucket, where
+ * n=_FIRST_SMALL_BUCKET_SIZE * 2^i . Here, `i` is the index in the array
+ */
 _free_chunk_t *_small_buckets[_SMALL_BUCKETS_COUNT];
 
+/*
+ * Returns the size in bytes of a page of memory on the current system
+ */
 static inline size_t _get_page_size(void)
 {
 	static size_t page_size = 0;
@@ -30,17 +66,29 @@ static inline size_t _get_page_size(void)
 	return page_size;
 }
 
+/*
+ * Asks the kernel for `n` pages and returns the pointer to the beginning
+ * of the allocated region of memory
+ */
 void *_alloc_pages(const size_t n)
 {
 	return mmap(NULL, n * _get_page_size(),
 		PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 }
 
+/*
+ * Frees the given region of `n` memory pages starting at `addr`
+ */
 void _free_pages(void *addr, const size_t n)
 {
 	munmap(addr, n * _get_page_size());
 }
 
+
+/*
+ * Allocates a `pages` pages long block of memory and creates a chunk on it that
+ * covers the whole block
+ */
 _block_t *_alloc_block(const size_t pages)
 {
 	_block_t *b;
@@ -58,6 +106,9 @@ _block_t *_alloc_block(const size_t pages)
 	return b;
 }
 
+/*
+ * Unlinks the given block `b` from its bin and frees it
+ */
 void _free_block(_block_t *b)
 {
 	if(b->prev)
@@ -73,12 +124,20 @@ void _free_block(_block_t *b)
 	_free_pages(b, b->pages);
 }
 
+/*
+ * Links the given block to the given bin
+ */
 static inline void _bin_link(_block_t **bin, _block_t *block)
 {
 	block->next = *bin;
 	*bin = block;
 }
 
+/*
+ * Returns a small bucket containing chunks large enough to fit an allocation of
+ * the given `size`. If `insert` is not zero, the function will return the first
+ * bucket that fits even if empty to allow insertion of a new free chunk.
+ */
 static _free_chunk_t **get_small_bucket(const size_t size, const int insert)
 {
 	size_t i = 0;
@@ -97,6 +156,9 @@ static _free_chunk_t **get_small_bucket(const size_t size, const int insert)
 	return &_small_buckets[i];
 }
 
+/*
+ * Links the given free chunk to the corresponding bucket
+ */
 // TODO Handle medium
 void _bucket_link(_free_chunk_t *chunk)
 {
@@ -112,6 +174,9 @@ void _bucket_link(_free_chunk_t *chunk)
 	*bucket = chunk;
 }
 
+/*
+ * Unlinks the given free chunk from its bucket
+ */
 // TODO Handle medium
 void _bucket_unlink(_free_chunk_t *chunk)
 {
@@ -128,6 +193,11 @@ void _bucket_unlink(_free_chunk_t *chunk)
 			_small_buckets[i] = chunk->next_free;
 }
 
+/*
+ * Allocates the given chunk for size `size`. Chunk might be split to another
+ * chunk if large enough. The new free chunk might be inserted in buckets for
+ * further allocations.
+ */
 static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 {
 	_free_chunk_t *new_chunk;
@@ -161,6 +231,9 @@ static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 	_bucket_link(new_chunk);
 }
 
+/*
+ * Handles a small allocation
+ */
 void *_small_alloc(const size_t size)
 {
 	_free_chunk_t **bucket;
@@ -180,6 +253,9 @@ void *_small_alloc(const size_t size)
 	return CHUNK_DATA(chunk);
 }
 
+/*
+ * Handles a medium allocation
+ */
 void *_medium_alloc(const size_t size)
 {
 	(void) size;
@@ -187,6 +263,9 @@ void *_medium_alloc(const size_t size)
 	return NULL;
 }
 
+/*
+ * Handles a large allocation
+ */
 void *_large_alloc(const size_t size)
 {
 	size_t min_size;

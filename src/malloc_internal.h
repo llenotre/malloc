@@ -14,11 +14,13 @@
 # define _SMALL_BLOCK_PAGES		((size_t) 2)
 # define _MEDIUM_BLOCK_PAGES	((size_t) 4)
 
-# define ALIGNMENT	16
-
+# define ALIGNMENT				16
 # define _MALLOC_CHUNK_MAGIC	(0x5ea310c36f405b33 & (sizeof(long) == 8\
 	? ~((unsigned long) 0) : 0xffffffff))
 
+/*
+ * Performs `ceil(n0 / n1)` without using floating point numbers
+ */
 # define CEIL_DIVISION(n0, n1)	((n0) / (n1) + !!((n0) % (n1)))
 # define MAX(n0, n1)			((n0) >= (n1) ? (n0) : (n1))
 # define DOWN_ALIGN(ptr, n)		((void *) ((uintptr_t) (ptr) & ~((n) - 1)))
@@ -34,6 +36,9 @@
 # define GET_BLOCK(chunk)	((void *) ((void *) (chunk) - BLOCK_DATA(NULL)))
 # define GET_CHUNK(ptr)		((void *) ((void *) (ptr) - CHUNK_DATA(NULL)))
 
+/*
+ * Memory chunk header
+ */
 typedef struct _chunk_hdr
 {
 	struct _chunk_hdr *prev, *next;
@@ -45,18 +50,27 @@ typedef struct _chunk_hdr
 # endif
 } _chunk_hdr_t;
 
+/*
+ * Used chunk structure
+ */
 typedef struct _used_chunk
 {
 	_chunk_hdr_t hdr;
 	char data[0];
 } _used_chunk_t;
 
+/*
+ * Free chunk structure
+ */
 typedef struct _free_chunk
 {
 	_chunk_hdr_t hdr;
 	struct _free_chunk *prev_free, *next_free;
 } _free_chunk_t;
 
+/*
+ * Memory block structure
+ */
 typedef struct _block
 {
 	struct _block *prev, *next;
