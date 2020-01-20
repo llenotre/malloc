@@ -50,7 +50,7 @@ OIL_TEST(linear_free_test)
 
 OIL_TEST(linear_list_free_test)
 {
-	void *arr[100];
+	void *arr[ALLOC_COUNT];
 	size_t i = 0;
 
 	while(i < ALLOC_COUNT)
@@ -61,10 +61,7 @@ OIL_TEST(linear_list_free_test)
 	}
 	i = 0;
 	while(i < ALLOC_COUNT)
-	{
-		free(arr[i]);
-		++i;
-	}
+		free(arr[i++]);
 	OIL_PASS();
 }
 
@@ -94,10 +91,7 @@ OIL_TEST(linear_large_free_test)
 	}
 	i = 0;
 	while(i < ALLOC_COUNT)
-	{
-		free(arr[i]);
-		++i;
-	}
+		free(arr[i++]);
 	OIL_PASS();
 }
 
@@ -107,7 +101,8 @@ static void stack_(const size_t n)
 
 	if(!(p = malloc(128)))
 		OIL_FAIL();
-	stack_(n - 1);
+	if(n > 0)
+		stack_(n - 1);
 	free(p);
 }
 

@@ -96,13 +96,15 @@ _block_t *_alloc_block(const size_t pages)
 
 	if(pages == 0 || !(b = _alloc_pages(pages)))
 		return NULL;
-	bzero(b, BLOCK_HDR_SIZE(b));
+	bzero(b, BLOCK_HDR_SIZE);
 	b->pages = pages;
 	first_chunk = BLOCK_DATA(b);
-	first_chunk->length = pages * _get_page_size() - BLOCK_HDR_SIZE(b);
+	first_chunk->length = pages * _get_page_size()
+		- (BLOCK_HDR_SIZE + CHUNK_HDR_SIZE);
 #ifdef _MALLOC_CHUNK_MAGIC
 	first_chunk->magic = _MALLOC_CHUNK_MAGIC;
 #endif
+	printf("_alloc_block %p\n", b);
 	return b;
 }
 
@@ -111,6 +113,7 @@ _block_t *_alloc_block(const size_t pages)
  */
 void _free_block(_block_t *b)
 {
+	printf("_free_block %p\n", b);
 	if(b->prev)
 		b->prev->next = b->next;
 	else if(b == _small_bin)
@@ -121,6 +124,11 @@ void _free_block(_block_t *b)
 		_large_bin = b->next;
 	if(b->next)
 		b->next->prev = b->prev;
+	printf("_small_bin: %p\n", _small_bin);
+	printf("_medium_bin: %p\n", _medium_bin);
+	printf("_large_bin: %p\n", _large_bin);
+	for(size_t i = 0; i < _SMALL_BUCKETS_COUNT; ++i)
+		printf("-> %zu, %p\n", i, _small_buckets[i]);
 	_free_pages(b, b->pages);
 }
 
@@ -130,6 +138,8 @@ void _free_block(_block_t *b)
 static inline void _bin_link(_block_t **bin, _block_t *block)
 {
 	block->next = *bin;
+	if(*bin)
+		(*bin)->prev = block;
 	*bin = block;
 }
 
@@ -164,6 +174,7 @@ void _bucket_link(_free_chunk_t *chunk)
 {
 	_free_chunk_t **bucket;
 
+	printf("link %p\n", chunk);
 	if(!(bucket = get_small_bucket(chunk->hdr.length, 1)))
 	{
 		// TODO Error?
@@ -180,17 +191,18 @@ void _bucket_link(_free_chunk_t *chunk)
 // TODO Handle medium
 void _bucket_unlink(_free_chunk_t *chunk)
 {
-	size_t i = 0;
+	size_t i;
 
+	printf("unlink %p\n", chunk);
+	for(i = 0; i < _SMALL_BUCKETS_COUNT; ++i)
+		if(_small_buckets[i] == chunk)
+			_small_buckets[i] = chunk->next_free;
 	if(chunk->prev_free)
 		chunk->prev_free->next_free = chunk->next_free;
 	if(chunk->next_free)
 		chunk->next_free->prev_free = chunk->prev_free;
 	chunk->prev_free = NULL;
 	chunk->next_free = NULL;
-	for(; i < _SMALL_BUCKETS_COUNT; ++i)
-		if(chunk == _small_buckets[i])
-			_small_buckets[i] = chunk->next_free;
 }
 
 /*
@@ -214,7 +226,7 @@ static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 	_bucket_unlink(chunk);
 	new_chunk = (_free_chunk_t *) UP_ALIGN(CHUNK_DATA(chunk) + size, ALIGNMENT);
 	size = MAX(ALIGNMENT, ((void *) new_chunk - CHUNK_DATA(chunk)));
-	new_len = size + CHUNK_HDR_SIZE(new_chunk);
+	new_len = size + CHUNK_HDR_SIZE;
 	if(chunk->hdr.length <= new_len + ALIGNMENT)
 		return;
 	l = chunk->hdr.length;
@@ -272,12 +284,28 @@ void *_large_alloc(const size_t size)
 	_block_t *b;
 	_chunk_hdr_t *first_chunk;
 
-	min_size = BLOCK_HDR_SIZE(NULL) + CHUNK_HDR_SIZE(BLOCK_HDR_SIZE(NULL))
-		+ size;
+	min_size = BLOCK_HDR_SIZE + CHUNK_HDR_SIZE + size;
 	if(!(b = _alloc_block(CEIL_DIVISION(min_size, _get_page_size()))))
 		return NULL;
 	_bin_link(&_large_bin, b);
 	first_chunk = BLOCK_DATA(b);
 	first_chunk->used = 1;
 	return CHUNK_DATA(first_chunk);
+}
+
+void _chunk_assert(_chunk_hdr_t *c)
+{
+#ifdef _MALLOC_CHUNK_MAGIC
+	if(c->magic != _MALLOC_CHUNK_MAGIC)
+	{
+		dprintf(STDERR_FILENO, "abort: corrupted chunk\n");
+		abort();
+	}
+#endif
+	if(!c->used)
+	{
+		dprintf(STDERR_FILENO,
+			"abort: pointer %p was not allocated\n", CHUNK_DATA(c));
+		abort();
+	}
 }

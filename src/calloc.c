@@ -10,6 +10,7 @@
 void *calloc(const size_t nmemb, const size_t size)
 {
 	size_t n;
+	void *ptr;
 
 	if(nmemb == 0 || size == 0)
 		return NULL;
@@ -18,5 +19,7 @@ void *calloc(const size_t nmemb, const size_t size)
 		errno = ENOMEM;
 		return NULL;
 	}
-	return malloc(n);
+	if((ptr = malloc(n)))
+		bzero(ptr, size);
+	return ptr;
 }

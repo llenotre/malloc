@@ -5,6 +5,18 @@
 #include <unistd.h>
 
 /*
+ * Merges the given chunk with the following chunk.
+ * Given chunk must not be used and must be followed by another unused chunk.
+ */
+static void _merge_chunks(_chunk_hdr_t *c)
+{
+	_bucket_unlink((_free_chunk_t *) c->next);
+	c->length += CHUNK_HDR_SIZE + c->next->length;
+	if((c->next = c->next->next))
+		c->next->prev = c;
+}
+
+/*
  * Frees the given memory chunk.
  * Does nothing if `ptr` is `NULL`.
  *
@@ -19,40 +31,19 @@ void free(void *ptr)
 	if(!ptr)
 		return;
 	c = GET_CHUNK(ptr);
-#ifdef _MALLOC_CHUNK_MAGIC
-	if(c->magic != _MALLOC_CHUNK_MAGIC)
-	{
-		dprintf(STDERR_FILENO, "abort: %s(): corrupted chunk\n", __func__);
-		abort();
-	}
-#endif
-	if(!c->used)
-	{
-		dprintf(STDERR_FILENO, "abort: %s(): invalid free\n", __func__);
-		abort();
-	}
+	_chunk_assert(c);
 	c->used = 0;
+	_bucket_link((_free_chunk_t *) c);
+	printf("free chunk %p\n", c);
 	if(c->next && !c->next->used)
-	{
-		if((c->next->prev = c->prev))
-			c->next->prev->next = c->next;
-		c->length += sizeof(_chunk_hdr_t) + c->next->length;
-	}
+		_merge_chunks(c);
 	if(c->prev && !c->prev->used)
 	{
-		if((c->prev->next = c->next))
-			c->prev->next->prev = c->prev;
-		c->prev->length += sizeof(_chunk_hdr_t) + c->length;
-	}
-	_bucket_link((_free_chunk_t *) c);
-	if(c->next && c->next->used)
-		return;
-	while(c->prev)
-	{
-		if(c->used)
-			return;
 		c = c->prev;
+		_merge_chunks(c);
 	}
+	if(c->prev || c->next)
+		return;
 	_bucket_unlink((_free_chunk_t *) c);
 	b = GET_BLOCK(c);
 	_free_block(b);

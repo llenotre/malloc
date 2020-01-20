@@ -13,6 +13,9 @@
  */
 void *realloc(void *ptr, const size_t size)
 {
+	_chunk_hdr_t *c;
+	void *p;
+
 	if(!ptr)
 		return malloc(size);
 	if(size == 0)
@@ -20,6 +23,19 @@ void *realloc(void *ptr, const size_t size)
 		free(ptr);
 		return NULL;
 	}
-	// TODO
-	return NULL;
+	c = GET_CHUNK(ptr);
+	_chunk_assert(c);
+	if(size <= c->length)
+		return ptr; // TODO Shrink chunk?
+	if(c->next && !c->next->used)
+	{
+		// TODO Check if next chunk is large enough
+		// TODO Shrink/eat next chunk
+		return ptr;
+	}
+	if(!(p = malloc(size)))
+		return NULL;
+	memcpy(p, ptr, MIN(c->length, size));
+	free(ptr);
+	return p;
 }

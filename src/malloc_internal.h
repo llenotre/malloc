@@ -14,7 +14,13 @@
 # define _SMALL_BLOCK_PAGES		((size_t) 2)
 # define _MEDIUM_BLOCK_PAGES	((size_t) 4)
 
+/*
+ * Chunks alignment boundary.
+ */
 # define ALIGNMENT				16
+/*
+ * Magic number used to check integrity of memory chunks.
+ */
 # define _MALLOC_CHUNK_MAGIC	(0x5ea310c36f405b33 & (sizeof(long) == 8\
 	? ~((unsigned long) 0) : 0xffffffff))
 
@@ -22,16 +28,24 @@
  * Performs `ceil(n0 / n1)` without using floating point numbers
  */
 # define CEIL_DIVISION(n0, n1)	((n0) / (n1) + !!((n0) % (n1)))
-# define MAX(n0, n1)			((n0) >= (n1) ? (n0) : (n1))
 # define DOWN_ALIGN(ptr, n)		((void *) ((uintptr_t) (ptr) & ~((n) - 1)))
 // TODO Do not add `n` if ptr was already aligned
 # define UP_ALIGN(ptr, n)		(DOWN_ALIGN(ptr, n) + (n))
 
+/*
+ * Returns the lowest between the two given values.
+ */
+# define MIN(n0, n1)			((n0) <= (n1) ? (n0) : (n1))
+/*
+ * Returns the greatest between the two given values.
+ */
+# define MAX(n0, n1)			((n0) >= (n1) ? (n0) : (n1))
+
 # define BLOCK_DATA(b)		UP_ALIGN(((_block_t *) (b))->data, ALIGNMENT)
 # define CHUNK_DATA(c)		UP_ALIGN(((_used_chunk_t *) (c))->data, ALIGNMENT)
 
-# define BLOCK_HDR_SIZE(b)	((uintptr_t) (BLOCK_DATA(b) - (void *) (b)))
-# define CHUNK_HDR_SIZE(c)	((uintptr_t) (CHUNK_DATA(c) - (void *) (c)))
+# define BLOCK_HDR_SIZE		((size_t) BLOCK_DATA(NULL))
+# define CHUNK_HDR_SIZE		((size_t) CHUNK_DATA(NULL))
 
 # define GET_BLOCK(chunk)	((void *) ((void *) (chunk) - BLOCK_DATA(NULL)))
 # define GET_CHUNK(ptr)		((void *) ((void *) (ptr) - CHUNK_DATA(NULL)))
@@ -91,5 +105,7 @@ void _bucket_unlink(_free_chunk_t *chunk);
 void *_small_alloc(size_t size);
 void *_medium_alloc(size_t size);
 void *_large_alloc(size_t size);
+
+void _chunk_assert(_chunk_hdr_t *c);
 
 #endif

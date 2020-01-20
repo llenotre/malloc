@@ -25,9 +25,7 @@ void *malloc(const size_t size)
 		ptr = _medium_alloc(size);
 	else
 		ptr = _large_alloc(size);
-	if(ptr)
-		bzero(ptr, size);
-	else
+	if(!ptr)
 		errno = ENOMEM;
 	return ptr;
 }
