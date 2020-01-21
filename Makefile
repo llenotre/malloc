@@ -38,9 +38,9 @@ fclean: clean
 re: fclean all
 
 unit_test/%.test: unit_test/%.c $(NAME)
-	$(CC) $(CFLAGS) $< $(NAME) /usr/local/lib/oil_tester.a -o $@
+	$(CC) $(CFLAGS) $< $(NAME) ../oil_/tester_lib.a -o $@ -I ../oil_/src/tester_lib/
 
 test: $(UNIT_TESTS:.c=.test)
-	oil_tester unit_test/
+	sh ../oil_/src/tester.sh unit_test/
 
 .PHONY: all clean fclean re

@@ -108,4 +108,8 @@ void *_large_alloc(size_t size);
 
 void _chunk_assert(_chunk_hdr_t *c);
 
+# ifdef _MALLOC_DEBUG
+void _debug_show_alloc(void);
+# endif
+
 #endif

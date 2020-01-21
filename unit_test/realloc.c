@@ -17,7 +17,7 @@ OIL_TEST(realloc_free)
 
 	if(!(p = malloc(8)))
 		OIL_FAIL();
-	realloc(p, 0);
+	(void) realloc(p, 0);
 	OIL_PASS();
 }
 

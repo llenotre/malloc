@@ -32,6 +32,9 @@ static size_t debug_print(const char *str, _block_t *b)
 	return total;
 }
 
+/*
+ * Prints blocks with memory along with their type and the list of chunks inside
+ */
 void _debug_show_alloc(void)
 {
 	size_t total = 0;
