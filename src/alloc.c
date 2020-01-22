@@ -5,6 +5,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+// TODO Do not use printf/dprintf for errors printing
+
 /*
  * This file handles internal operations for the allocator.
  *
@@ -29,7 +31,7 @@
  */
 
 /*
- * Bins containing the list of allocated blocks
+ * Bins containing the list of allocated blocks.
  */
 _block_t *_small_bin = NULL;
 _block_t *_medium_bin = NULL;
@@ -37,15 +39,15 @@ _block_t *_large_bin = NULL;
 
 /*
  * Buckets containing lists of free chunks.
- * Lists are sorted according to the size of the empty chunk
+ * Lists are sorted according to the size of the empty chunk.
  *
  * A chunk must be at least `n` bytes large to fit in a bucket, where
- * n=_FIRST_SMALL_BUCKET_SIZE * 2^i . Here, `i` is the index in the array
+ * n=_FIRST_SMALL_BUCKET_SIZE * 2^i . Here, `i` is the index in the array.
  */
 _free_chunk_t *_small_buckets[_SMALL_BUCKETS_COUNT];
 
 /*
- * Returns the size in bytes of a page of memory on the current system
+ * Returns the size in bytes of a page of memory on the current system.
  */
 static inline size_t _get_page_size(void)
 {
@@ -68,7 +70,7 @@ static inline size_t _get_page_size(void)
 
 /*
  * Asks the kernel for `n` pages and returns the pointer to the beginning
- * of the allocated region of memory
+ * of the allocated region of memory.
  */
 void *_alloc_pages(const size_t n)
 {
@@ -77,7 +79,7 @@ void *_alloc_pages(const size_t n)
 }
 
 /*
- * Frees the given region of `n` memory pages starting at `addr`
+ * Frees the given region of `n` memory pages starting at `addr`.
  */
 void _free_pages(void *addr, const size_t n)
 {
@@ -87,7 +89,7 @@ void _free_pages(void *addr, const size_t n)
 
 /*
  * Allocates a `pages` pages long block of memory and creates a chunk on it that
- * covers the whole block
+ * covers the whole block.
  */
 _block_t *_alloc_block(const size_t pages)
 {
@@ -109,7 +111,7 @@ _block_t *_alloc_block(const size_t pages)
 }
 
 /*
- * Unlinks the given block `b` from its bin and frees it
+ * Unlinks the given block `b` from its bin and frees it.
  */
 void _free_block(_block_t *b)
 {
@@ -133,7 +135,7 @@ void _free_block(_block_t *b)
 }
 
 /*
- * Links the given block to the given bin
+ * Links the given block to the given bin.
  */
 static inline void _bin_link(_block_t **bin, _block_t *block)
 {
@@ -167,7 +169,7 @@ static _free_chunk_t **get_small_bucket(const size_t size, const int insert)
 }
 
 /*
- * Links the given free chunk to the corresponding bucket
+ * Links the given free chunk to the corresponding bucket.
  */
 // TODO Handle medium
 void _bucket_link(_free_chunk_t *chunk)
@@ -181,12 +183,13 @@ void _bucket_link(_free_chunk_t *chunk)
 		return;
 	}
 	chunk->prev_free = NULL;
-	chunk->next_free = *bucket;
+	if((chunk->next_free = *bucket))
+		chunk->next_free->prev_free = chunk;
 	*bucket = chunk;
 }
 
 /*
- * Unlinks the given free chunk from its bucket
+ * Unlinks the given free chunk from its bucket.
  */
 // TODO Handle medium
 void _bucket_unlink(_free_chunk_t *chunk)
@@ -244,7 +247,7 @@ static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 }
 
 /*
- * Handles a small allocation
+ * Handles a small allocation.
  */
 void *_small_alloc(const size_t size)
 {
@@ -266,7 +269,7 @@ void *_small_alloc(const size_t size)
 }
 
 /*
- * Handles a medium allocation
+ * Handles a medium allocation.
  */
 void *_medium_alloc(const size_t size)
 {
@@ -276,7 +279,7 @@ void *_medium_alloc(const size_t size)
 }
 
 /*
- * Handles a large allocation
+ * Handles a large allocation.
  */
 void *_large_alloc(const size_t size)
 {
@@ -293,6 +296,10 @@ void *_large_alloc(const size_t size)
 	return CHUNK_DATA(first_chunk);
 }
 
+/*
+ * Checks validity of the given chunk. If the chunk is invalid, prints an error
+ * message and aborts.
+ */
 void _chunk_assert(_chunk_hdr_t *c)
 {
 #ifdef _MALLOC_CHUNK_MAGIC

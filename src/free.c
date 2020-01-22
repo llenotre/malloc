@@ -42,6 +42,7 @@ void free(void *ptr)
 		c = c->prev;
 		_merge_chunks(c);
 	}
+	_debug_show_alloc();
 	if(c->prev || c->next)
 		return;
 	_bucket_unlink((_free_chunk_t *) c);

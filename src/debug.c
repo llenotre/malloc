@@ -3,6 +3,9 @@
 
 #include <stdio.h>
 
+// TODO rm
+#define _MALLOC_DEBUG_SHOW_FREE
+
 #ifdef _MALLOC_DEBUG
 extern _block_t *_small_bin;
 extern _block_t *_medium_bin;
@@ -19,10 +22,18 @@ static size_t debug_print(const char *str, _block_t *b)
 		c = BLOCK_DATA(b);
 		while(c)
 		{
+#ifndef _MALLOC_DEBUG_SHOW_FREE
 			if(c->used)
+#endif
 			{
+#ifdef _MALLOC_DEBUG_SHOW_FREE
+				printf("%p - %p: %zu bytes (%s)\n", ((_used_chunk_t *) c)->data,
+					((_used_chunk_t *) c)->data + c->length, c->length,
+						(c->used ? "used" : "free"));
+#else
 				printf("%p - %p: %zu bytes\n", ((_used_chunk_t *) c)->data,
 					((_used_chunk_t *) c)->data + c->length, c->length);
+#endif
 				total += c->length;
 			}
 			c = c->next;
