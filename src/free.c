@@ -1,8 +1,10 @@
 #include "malloc_internal.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+// TODO rm
+#include <stdio.h>
 
 /*
  * Merges the given chunk with the following chunk.
@@ -26,7 +28,6 @@ static void _merge_chunks(_chunk_hdr_t *c)
 void free(void *ptr)
 {
 	_chunk_hdr_t *c;
-	_block_t *b;
 
 	if(!ptr)
 		return;
@@ -46,6 +47,5 @@ void free(void *ptr)
 	if(c->prev || c->next)
 		return;
 	_bucket_unlink((_free_chunk_t *) c);
-	b = GET_BLOCK(c);
-	_free_block(b);
+	_free_block(c->block);
 }

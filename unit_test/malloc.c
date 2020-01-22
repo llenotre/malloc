@@ -23,11 +23,13 @@ OIL_TEST(null_test)
 OIL_TEST(linear_nofree_test)
 {
 	size_t i = 0;
+	void *p;
 
 	while(i < ALLOC_COUNT)
 	{
-		if(!malloc(i + 1))
+		if(!(p = malloc(i + 1)))
 			OIL_FAIL();
+		memset(p, 0xff, i + 1);
 		++i;
 	}
 	OIL_PASS();
@@ -35,13 +37,14 @@ OIL_TEST(linear_nofree_test)
 
 OIL_TEST(linear_free_test)
 {
-	void *p;
 	size_t i = 0;
+	void *p;
 
 	while(i < ALLOC_COUNT)
 	{
 		if(!(p = malloc(i + 1)))
 			OIL_FAIL();
+		memset(p, 0xff, i + 1);
 		free(p);
 		++i;
 	}
@@ -50,13 +53,14 @@ OIL_TEST(linear_free_test)
 
 OIL_TEST(linear_list_free_test)
 {
-	void *arr[ALLOC_COUNT];
 	size_t i = 0;
+	void *arr[ALLOC_COUNT];
 
 	while(i < ALLOC_COUNT)
 	{
 		if(!(arr[i] = malloc(i + 1)))
 			OIL_FAIL();
+		memset(arr[i], 0xff, i + 1);
 		++i;
 	}
 	i = 0;
@@ -68,11 +72,13 @@ OIL_TEST(linear_list_free_test)
 OIL_TEST(linear_large_nofree_test)
 {
 	size_t i = 0;
+	void *p;
 
 	while(i < ALLOC_COUNT)
 	{
-		if(!malloc(512 * 1024))
+		if(!(p = malloc(512 * 1024)))
 			OIL_FAIL();
+		memset(p, 0xff, 512 * 1024);
 		++i;
 	}
 	OIL_PASS();
@@ -80,13 +86,14 @@ OIL_TEST(linear_large_nofree_test)
 
 OIL_TEST(linear_large_free_test)
 {
-	void *arr[ALLOC_COUNT];
 	size_t i = 0;
+	void *arr[ALLOC_COUNT];
 
 	while(i < ALLOC_COUNT)
 	{
 		if(!(arr[i] = malloc(512 * 1024)))
 			OIL_FAIL();
+		memset(arr[i], 0xff, 512 * 1024);
 		++i;
 	}
 	i = 0;
@@ -95,12 +102,16 @@ OIL_TEST(linear_large_free_test)
 	OIL_PASS();
 }
 
+#define ALLOC_SIZE	128
+#define STACK_DEPTH	64
+
 static void stack_(const size_t n)
 {
 	void *p;
 
-	if(!(p = malloc(128)))
+	if(!(p = malloc(ALLOC_SIZE)))
 		OIL_FAIL();
+	memset(p, 0xff, ALLOC_SIZE);
 	if(n > 0)
 		stack_(n - 1);
 	free(p);
@@ -108,7 +119,7 @@ static void stack_(const size_t n)
 
 OIL_TEST(stack_free_test)
 {
-	stack_(64);
+	stack_(STACK_DEPTH);
 	OIL_PASS();
 }
 
@@ -118,13 +129,14 @@ OIL_TEST(stack_free_test)
 
 OIL_TEST(intertwined_free_test)
 {
-	void *arr[ALLOC_COUNT];
 	size_t i = 0;
+	void *arr[ALLOC_COUNT];
 
 	while(i < ALLOC_COUNT)
 	{
 		if(!(arr[i] = malloc(i + 1)))
 			OIL_FAIL();
+		memset(arr[i], 0xff, i + 1);
 		++i;
 	}
 	i = 0;

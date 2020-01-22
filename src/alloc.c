@@ -154,9 +154,8 @@ static inline void _bin_link(_block_t *block)
 	_block_t **bin;
 
 	bin = _block_get_bin(block);
-	block->next = *bin;
-	if(*bin)
-		(*bin)->prev = block;
+	if((block->next = *bin))
+		block->next->prev = block;
 	*bin = block;
 }
 

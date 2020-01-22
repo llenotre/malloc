@@ -55,7 +55,6 @@
 # define BLOCK_HDR_SIZE		((size_t) BLOCK_DATA(NULL))
 # define CHUNK_HDR_SIZE		((size_t) CHUNK_DATA(NULL))
 
-# define GET_BLOCK(chunk)	((void *) ((void *) (chunk) - BLOCK_DATA(NULL)))
 # define GET_CHUNK(ptr)		((void *) ((void *) (ptr) - CHUNK_DATA(NULL)))
 
 typedef struct _block _block_t;
