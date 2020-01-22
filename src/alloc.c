@@ -45,6 +45,7 @@ _block_t *_large_bin = NULL;
  * n=_FIRST_SMALL_BUCKET_SIZE * 2^i . Here, `i` is the index in the array.
  */
 _free_chunk_t *_small_buckets[_SMALL_BUCKETS_COUNT];
+_free_chunk_t *_medium_buckets[_MEDIUM_BUCKETS_COUNT];
 
 /*
  * Returns the size in bytes of a page of memory on the current system.
@@ -58,6 +59,7 @@ static inline size_t _get_page_size(void)
 		page_size = sysconf(_SC_PAGE_SIZE);
 #ifdef _MALLOC_DEBUG
 		dprintf(STDERR_FILENO, "malloc: page size: %zu bytes\n", page_size);
+		_print_malloc_info();
 #endif
 	}
 	if(page_size == 0)
@@ -101,6 +103,7 @@ _block_t *_alloc_block(const size_t pages)
 	bzero(b, BLOCK_HDR_SIZE);
 	b->pages = pages;
 	first_chunk = BLOCK_DATA(b);
+	first_chunk->block = b;
 	first_chunk->length = pages * _get_page_size()
 		- (BLOCK_HDR_SIZE + CHUNK_HDR_SIZE);
 #ifdef _MALLOC_CHUNK_MAGIC
@@ -108,6 +111,15 @@ _block_t *_alloc_block(const size_t pages)
 #endif
 	printf("_alloc_block %p\n", b);
 	return b;
+}
+
+_block_t **_block_get_bin(_block_t *b)
+{
+	if(b->pages <= _SMALL_BLOCK_PAGES)
+		return &_small_bin;
+	else if(b->pages <= _MEDIUM_BLOCK_PAGES)
+		return &_medium_bin;
+	return &_large_bin;
 }
 
 /*
@@ -137,8 +149,11 @@ void _free_block(_block_t *b)
 /*
  * Links the given block to the given bin.
  */
-static inline void _bin_link(_block_t **bin, _block_t *block)
+static inline void _bin_link(_block_t *block)
 {
+	_block_t **bin;
+
+	bin = _block_get_bin(block);
 	block->next = *bin;
 	if(*bin)
 		(*bin)->prev = block;
@@ -150,34 +165,46 @@ static inline void _bin_link(_block_t **bin, _block_t *block)
  * the given `size`. If `insert` is not zero, the function will return the first
  * bucket that fits even if empty to allow insertion of a new free chunk.
  */
-static _free_chunk_t **get_small_bucket(const size_t size, const int insert)
+static _free_chunk_t **_get_bucket(const size_t size, const int insert,
+	const int medium)
 {
+	_free_chunk_t **buckets;
+	size_t first, count;
 	size_t i = 0;
 
+	if(medium)
+	{
+		buckets = _medium_buckets;
+		first = _FIRST_MEDIUM_BUCKET_SIZE;
+		count = _MEDIUM_BUCKETS_COUNT;
+	}
+	else
+	{
+		buckets = _small_buckets;
+		first = _FIRST_SMALL_BUCKET_SIZE;
+		count = _SMALL_BUCKETS_COUNT;
+	}
 	if(insert)
 	{
-		while((_FIRST_SMALL_BUCKET_SIZE << (i + 1)) < size
-			&& i < _SMALL_BUCKETS_COUNT - 1)
+		while((first << (i + 1)) < size && i < count - 1)
 			++i;
 	}
 	else
-		while((!_small_buckets[i]
-			|| (_FIRST_SMALL_BUCKET_SIZE << (i + 1)) < size)
-				&& i < _SMALL_BUCKETS_COUNT - 1)
+		while((!buckets[i] || (first << (i + 1)) < size) && i < count - 1)
 			++i;
-	return &_small_buckets[i];
+	return buckets + i;
 }
 
 /*
  * Links the given free chunk to the corresponding bucket.
  */
-// TODO Handle medium
 void _bucket_link(_free_chunk_t *chunk)
 {
 	_free_chunk_t **bucket;
 
 	printf("link %p\n", chunk);
-	if(!(bucket = get_small_bucket(chunk->hdr.length, 1)))
+	if(!(bucket = _get_bucket(chunk->hdr.length, 1,
+		_block_get_bin(chunk->hdr.block) == &_medium_bin)))
 	{
 		// TODO Error?
 		return;
@@ -238,6 +265,7 @@ static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 		new_chunk->hdr.next->prev = (_chunk_hdr_t *) new_chunk;
 	if((new_chunk->hdr.prev = (_chunk_hdr_t *) chunk))
 		new_chunk->hdr.prev->next = (_chunk_hdr_t *) new_chunk;
+	new_chunk->hdr.block = chunk->hdr.block;
 	new_chunk->hdr.length = l - new_len;
 	new_chunk->hdr.used = 0;
 #ifdef _MALLOC_CHUNK_MAGIC
@@ -255,11 +283,11 @@ void *_small_alloc(const size_t size)
 	_block_t *b;
 	_free_chunk_t *chunk;
 
-	if(!(bucket = get_small_bucket(size, 0)) || !*bucket)
+	if(!(bucket = _get_bucket(size, 0, 0)) || !*bucket)
 	{
 		if(!(b = _alloc_block(_SMALL_BLOCK_PAGES)))
 			return NULL;
-		_bin_link(&_small_bin, b);
+		_bin_link(b);
 		chunk = BLOCK_DATA(b);
 	}
 	else
@@ -273,9 +301,21 @@ void *_small_alloc(const size_t size)
  */
 void *_medium_alloc(const size_t size)
 {
-	(void) size;
-	// TODO
-	return NULL;
+	_free_chunk_t **bucket;
+	_block_t *b;
+	_free_chunk_t *chunk;
+
+	if(!(bucket = _get_bucket(size, 0, 1)) || !*bucket)
+	{
+		if(!(b = _alloc_block(_MEDIUM_BLOCK_PAGES)))
+			return NULL;
+		_bin_link(b);
+		chunk = BLOCK_DATA(b);
+	}
+	else
+		chunk = *bucket;
+	_alloc_chunk(chunk, size);
+	return CHUNK_DATA(chunk);
 }
 
 /*
@@ -290,7 +330,7 @@ void *_large_alloc(const size_t size)
 	min_size = BLOCK_HDR_SIZE + CHUNK_HDR_SIZE + size;
 	if(!(b = _alloc_block(CEIL_DIVISION(min_size, _get_page_size()))))
 		return NULL;
-	_bin_link(&_large_bin, b);
+	_bin_link(b);
 	first_chunk = BLOCK_DATA(b);
 	first_chunk->used = 1;
 	return CHUNK_DATA(first_chunk);

@@ -112,6 +112,10 @@ OIL_TEST(stack_free_test)
 	OIL_PASS();
 }
 
+// TODO rm
+#undef ALLOC_COUNT
+#define ALLOC_COUNT 2
+
 OIL_TEST(intertwined_free_test)
 {
 	void *arr[ALLOC_COUNT];

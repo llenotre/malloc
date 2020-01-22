@@ -9,7 +9,11 @@
 
 # define _SMALL_BIN_MAX\
 	(_FIRST_SMALL_BUCKET_SIZE << (_SMALL_BUCKETS_COUNT - 1))
-# define _MEDIUM_BIN_MAX	262144
+
+# define _FIRST_MEDIUM_BUCKET_SIZE	_SMALL_BIN_MAX
+# define _MEDIUM_BUCKETS_COUNT		((size_t) 11)
+
+# define _MEDIUM_BIN_MAX			((size_t) 262144)
 
 # define _SMALL_BLOCK_PAGES		((size_t) 2)
 # define _MEDIUM_BLOCK_PAGES	((size_t) 4)
@@ -28,9 +32,13 @@
  * Performs `ceil(n0 / n1)` without using floating point numbers
  */
 # define CEIL_DIVISION(n0, n1)	((n0) / (n1) + !!((n0) % (n1)))
+/*
+ * Checks if the given pointer is aligned to the given boundary.
+ */
+# define IS_ALIGNED(ptr, n)		(((uintptr_t) (ptr) & ((n) - 1)) == 0)
 # define DOWN_ALIGN(ptr, n)		((void *) ((uintptr_t) (ptr) & ~((n) - 1)))
-// TODO Do not add `n` if ptr was already aligned
-# define UP_ALIGN(ptr, n)		(DOWN_ALIGN(ptr, n) + (n))
+# define UP_ALIGN(ptr, n)\
+	(IS_ALIGNED(ptr, n) ? (ptr) : DOWN_ALIGN(ptr, n) + (n))
 
 /*
  * Returns the lowest between the two given values.
@@ -50,6 +58,8 @@
 # define GET_BLOCK(chunk)	((void *) ((void *) (chunk) - BLOCK_DATA(NULL)))
 # define GET_CHUNK(ptr)		((void *) ((void *) (ptr) - CHUNK_DATA(NULL)))
 
+typedef struct _block _block_t;
+
 /*
  * Memory chunk header
  */
@@ -57,6 +67,7 @@ typedef struct _chunk_hdr
 {
 	struct _chunk_hdr *prev, *next;
 
+	_block_t *block;
 	size_t length;
 	char used;
 # ifdef _MALLOC_CHUNK_MAGIC
@@ -97,6 +108,7 @@ void *_alloc_pages(size_t n);
 void _free_pages(void *addr, size_t n);
 
 _block_t *_alloc_block(const size_t pages);
+_block_t **_block_get_bin(_block_t *b);
 void _free_block(_block_t *b);
 
 void _bucket_link(_free_chunk_t *chunk);
@@ -109,6 +121,7 @@ void *_large_alloc(size_t size);
 void _chunk_assert(_chunk_hdr_t *c);
 
 # ifdef _MALLOC_DEBUG
+void _print_malloc_info(void);
 void _debug_show_alloc(void);
 # endif
 
