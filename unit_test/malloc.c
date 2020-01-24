@@ -13,7 +13,11 @@ static void *malloc_(const size_t n)
 	return p;
 }
 
-#define malloc(n)	malloc_(n)
+#ifdef malloc
+# define _malloc(n)	malloc_(n)
+#else
+# define malloc(n)	malloc_(n)
+#endif
 
 OIL_TEST(null_test)
 {
@@ -61,6 +65,42 @@ OIL_TEST(linear_list_free_test)
 		if(!(arr[i] = malloc(i + 1)))
 			OIL_FAIL();
 		memset(arr[i], 0xff, i + 1);
+		++i;
+	}
+	i = 0;
+	while(i < ALLOC_COUNT)
+		free(arr[i++]);
+	OIL_PASS();
+}
+
+OIL_TEST(linear_medium_test)
+{
+	size_t i = 0;
+	void *arr[ALLOC_COUNT];
+
+	while(i < ALLOC_COUNT)
+	{
+		if(!(arr[i] = malloc((i + 1) * 256)))
+			OIL_FAIL();
+		memset(arr[i], 0xff, (i + 1) * 256);
+		++i;
+	}
+	i = 0;
+	while(i < ALLOC_COUNT)
+		free(arr[i++]);
+	OIL_PASS();
+}
+
+OIL_TEST(small_medium_test)
+{
+	size_t i = 0;
+	void *arr[ALLOC_COUNT];
+
+	while(i < ALLOC_COUNT)
+	{
+		if(!(arr[i] = malloc((i + 1) * 16)))
+			OIL_FAIL();
+		memset(arr[i], 0xff, (i + 1) * 16);
 		++i;
 	}
 	i = 0;
@@ -123,10 +163,6 @@ OIL_TEST(stack_free_test)
 	OIL_PASS();
 }
 
-// TODO rm
-#undef ALLOC_COUNT
-#define ALLOC_COUNT 2
-
 OIL_TEST(intertwined_free_test)
 {
 	size_t i = 0;
@@ -142,11 +178,14 @@ OIL_TEST(intertwined_free_test)
 	i = 0;
 	while(i < ALLOC_COUNT)
 	{
-		if(i % 2 == 0)
-			free(arr[ALLOC_COUNT - i - 1]);
-		else
-			free(arr[i]);
-		++i;
+		free(arr[i]);
+		i += 2;
+	}
+	i = 1;
+	while(i < ALLOC_COUNT)
+	{
+		free(arr[i]);
+		i += 2;
 	}
 	OIL_PASS();
 }
@@ -158,6 +197,10 @@ void oil_prepare_tests(void)
 	OIL_TEST_REGISTER(linear_nofree_test);
 	OIL_TEST_REGISTER(linear_free_test);
 	OIL_TEST_REGISTER(linear_list_free_test);
+
+	OIL_TEST_REGISTER(linear_medium_test);
+	OIL_TEST_REGISTER(small_medium_test);
+
 	OIL_TEST_REGISTER(linear_large_nofree_test);
 	OIL_TEST_REGISTER(linear_large_free_test);
 

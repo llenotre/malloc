@@ -1,3 +1,4 @@
+#include "malloc.h"
 #include "malloc_internal.h"
 
 #include <stdlib.h>
@@ -35,7 +36,6 @@ void free(void *ptr)
 	_chunk_assert(c);
 	c->used = 0;
 	_bucket_link((_free_chunk_t *) c);
-	printf("free chunk %p\n", c);
 	if(c->next && !c->next->used)
 		_merge_chunks(c);
 	if(c->prev && !c->prev->used)
@@ -43,7 +43,6 @@ void free(void *ptr)
 		c = c->prev;
 		_merge_chunks(c);
 	}
-	_debug_show_alloc();
 	if(c->prev || c->next)
 		return;
 	_bucket_unlink((_free_chunk_t *) c);

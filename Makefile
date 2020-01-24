@@ -2,7 +2,8 @@ NAME = crumalloc.a
 AR = ar
 ARFLAGS = rc
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -Wno-unused-result -D _MALLOC_DEBUG -g3
+CFLAGS = -Wall -Wextra -Werror -Wno-unused-result\
+	-D _MALLOC_DEBUG -D _MALLOC_CONFLICT -g3
 
 SRC_DIR = src/
 SRC := $(shell find $(SRC_DIR) -type f -name "*.c")

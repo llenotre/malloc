@@ -44,7 +44,9 @@ _block_t *_large_bin = NULL;
  * A chunk must be at least `n` bytes large to fit in a bucket, where
  * n=_FIRST_SMALL_BUCKET_SIZE * 2^i . Here, `i` is the index in the array.
  */
+__attribute__((section(".bss")))
 _free_chunk_t *_small_buckets[_SMALL_BUCKETS_COUNT];
+__attribute__((section(".bss")))
 _free_chunk_t *_medium_buckets[_MEDIUM_BUCKETS_COUNT];
 
 /*
@@ -88,7 +90,6 @@ void _free_pages(void *addr, const size_t n)
 	munmap(addr, n * _get_page_size());
 }
 
-
 /*
  * Allocates a `pages` pages long block of memory and creates a chunk on it that
  * covers the whole block.
@@ -109,7 +110,7 @@ _block_t *_alloc_block(const size_t pages)
 #ifdef _MALLOC_CHUNK_MAGIC
 	first_chunk->magic = _MALLOC_CHUNK_MAGIC;
 #endif
-	printf("_alloc_block %p\n", b);
+	printf("alloc block: %p\n", b);
 	return b;
 }
 
@@ -127,7 +128,7 @@ _block_t **_block_get_bin(_block_t *b)
  */
 void _free_block(_block_t *b)
 {
-	printf("_free_block %p\n", b);
+	printf("free block: %p\n", b);
 	if(b->prev)
 		b->prev->next = b->next;
 	else if(b == _small_bin)
@@ -138,11 +139,6 @@ void _free_block(_block_t *b)
 		_large_bin = b->next;
 	if(b->next)
 		b->next->prev = b->prev;
-	printf("_small_bin: %p\n", _small_bin);
-	printf("_medium_bin: %p\n", _medium_bin);
-	printf("_large_bin: %p\n", _large_bin);
-	for(size_t i = 0; i < _SMALL_BUCKETS_COUNT; ++i)
-		printf("-> %zu, %p\n", i, _small_buckets[i]);
 	_free_pages(b, b->pages);
 }
 
@@ -201,7 +197,7 @@ void _bucket_link(_free_chunk_t *chunk)
 {
 	_free_chunk_t **bucket;
 
-	printf("link %p\n", chunk);
+	printf("bucket link %p\n", chunk);
 	if(!(bucket = _get_bucket(chunk->hdr.length, 1,
 		_block_get_bin(chunk->hdr.block) == &_medium_bin)))
 	{
@@ -222,7 +218,7 @@ void _bucket_unlink(_free_chunk_t *chunk)
 {
 	size_t i;
 
-	printf("unlink %p\n", chunk);
+	printf("bucket unlink %p\n", chunk);
 	for(i = 0; i < _SMALL_BUCKETS_COUNT; ++i)
 		if(_small_buckets[i] == chunk)
 			_small_buckets[i] = chunk->next_free;
@@ -244,6 +240,7 @@ static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 	_free_chunk_t *new_chunk;
 	size_t new_len, l;
 
+	printf("alloc chunk: %p\n", chunk);
 #ifdef _MALLOC_CHUNK_MAGIC
 	if(chunk->hdr.magic != _MALLOC_CHUNK_MAGIC)
 	{
@@ -251,8 +248,8 @@ static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 		abort();
 	}
 #endif
-	chunk->hdr.used = 1;
 	_bucket_unlink(chunk);
+	chunk->hdr.used = 1;
 	new_chunk = (_free_chunk_t *) UP_ALIGN(CHUNK_DATA(chunk) + size, ALIGNMENT);
 	size = MAX(ALIGNMENT, ((void *) new_chunk - CHUNK_DATA(chunk)));
 	new_len = size + CHUNK_HDR_SIZE;
