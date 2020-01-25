@@ -52,7 +52,7 @@ _free_chunk_t *_medium_buckets[_MEDIUM_BUCKETS_COUNT];
 /*
  * Returns the size in bytes of a page of memory on the current system.
  */
-static inline size_t _get_page_size(void)
+size_t _get_page_size(void)
 {
 	static size_t page_size = 0;
 
@@ -61,7 +61,7 @@ static inline size_t _get_page_size(void)
 		page_size = sysconf(_SC_PAGE_SIZE);
 #ifdef _MALLOC_DEBUG
 		dprintf(STDERR_FILENO, "malloc: page size: %zu bytes\n", page_size);
-		_print_malloc_info();
+		_debug_print_malloc_info();
 #endif
 	}
 	if(page_size == 0)
@@ -110,7 +110,6 @@ _block_t *_alloc_block(const size_t pages)
 #ifdef _MALLOC_CHUNK_MAGIC
 	first_chunk->magic = _MALLOC_CHUNK_MAGIC;
 #endif
-	printf("alloc block: %p\n", b);
 	return b;
 }
 
@@ -128,7 +127,6 @@ _block_t **_block_get_bin(_block_t *b)
  */
 void _free_block(_block_t *b)
 {
-	printf("free block: %p\n", b);
 	if(b->prev)
 		b->prev->next = b->next;
 	else if(b == _small_bin)
@@ -179,13 +177,13 @@ static _free_chunk_t **_get_bucket(const size_t size, const int insert,
 		first = _FIRST_SMALL_BUCKET_SIZE;
 		count = _SMALL_BUCKETS_COUNT;
 	}
+	if(size < first)
+		return NULL;
 	if(insert)
-	{
-		while((first << (i + 1)) < size && i < count - 1)
+		while(size >= (first << (i + 1)) && i < count - 1)
 			++i;
-	}
 	else
-		while((!buckets[i] || (first << (i + 1)) < size) && i < count - 1)
+		while((!buckets[i] || size > (first << i)) && i < count - 1)
 			++i;
 	return buckets + i;
 }
@@ -197,9 +195,9 @@ void _bucket_link(_free_chunk_t *chunk)
 {
 	_free_chunk_t **bucket;
 
-	printf("bucket link %p\n", chunk);
-	bucket = _get_bucket(chunk->hdr.length, 1,
-		_block_get_bin(chunk->hdr.block) == &_medium_bin);
+	if(!(bucket = _get_bucket(chunk->hdr.length, 1,
+		_block_get_bin(chunk->hdr.block) == &_medium_bin)))
+		return;
 	chunk->prev_free = NULL;
 	if((chunk->next_free = *bucket))
 		chunk->next_free->prev_free = chunk;
@@ -214,7 +212,6 @@ void _bucket_unlink(_free_chunk_t *chunk)
 {
 	size_t i;
 
-	printf("bucket unlink %p\n", chunk);
 	// TODO Check block type instead of checking both small and medium?
 	for(i = 0; i < _SMALL_BUCKETS_COUNT; ++i)
 		if(_small_buckets[i] == chunk)
@@ -231,16 +228,16 @@ void _bucket_unlink(_free_chunk_t *chunk)
 }
 
 /*
- * Allocates the given chunk for size `size`. Chunk might be split to another
- * chunk if large enough. The new free chunk might be inserted in buckets for
+ * Allocates the given chunk for size `size`. The given chunk must be large
+ * enough to fit the allocation. Chunk might be split to another free chunk
+ * if large enough. The new free chunk might be inserted in buckets for
  * further allocations.
  */
 static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 {
 	_free_chunk_t *new_chunk;
-	size_t new_len, l;
+	size_t l;
 
-	printf("alloc chunk: %p %p\n", chunk, &chunk->hdr.magic);
 #ifdef _MALLOC_CHUNK_MAGIC
 	if(chunk->hdr.magic != _MALLOC_CHUNK_MAGIC)
 	{
@@ -248,12 +245,16 @@ static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 		abort();
 	}
 #endif
+	if(chunk->hdr.used || chunk->hdr.length < size)
+	{
+		dprintf(STDERR_FILENO, "abort: %s(): internal error\n", __func__);
+		abort();
+	}
 	_bucket_unlink(chunk);
 	chunk->hdr.used = 1;
+	size = MAX(ALIGNMENT, size);
 	new_chunk = (_free_chunk_t *) UP_ALIGN(CHUNK_DATA(chunk) + size, ALIGNMENT);
-	size = MAX(ALIGNMENT, ((void *) new_chunk - CHUNK_DATA(chunk)));
-	new_len = size + CHUNK_HDR_SIZE;
-	if(chunk->hdr.length <= new_len + ALIGNMENT)
+	if(chunk->hdr.length <= size + CHUNK_HDR_SIZE + ALIGNMENT)
 		return;
 	l = chunk->hdr.length;
 	chunk->hdr.length = size;
@@ -262,7 +263,7 @@ static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 	if((new_chunk->hdr.prev = (_chunk_hdr_t *) chunk))
 		new_chunk->hdr.prev->next = (_chunk_hdr_t *) new_chunk;
 	new_chunk->hdr.block = chunk->hdr.block;
-	new_chunk->hdr.length = l - new_len;
+	new_chunk->hdr.length = l - (size + CHUNK_HDR_SIZE);
 	new_chunk->hdr.used = 0;
 #ifdef _MALLOC_CHUNK_MAGIC
 	new_chunk->hdr.magic = _MALLOC_CHUNK_MAGIC;

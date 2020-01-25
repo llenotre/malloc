@@ -15,8 +15,8 @@
 
 # define _MEDIUM_BIN_MAX			((size_t) 262144)
 
-# define _SMALL_BLOCK_PAGES		((size_t) 2)
-# define _MEDIUM_BLOCK_PAGES	((size_t) 4)
+# define _SMALL_BLOCK_PAGES		((size_t) 8)
+# define _MEDIUM_BLOCK_PAGES	((size_t) 128)
 
 /*
  * Chunks alignment boundary.
@@ -103,6 +103,8 @@ typedef struct _block
 	char data[0];
 } _block_t;
 
+size_t _get_page_size(void);
+
 void *_alloc_pages(size_t n);
 void _free_pages(void *addr, size_t n);
 
@@ -120,8 +122,9 @@ void *_large_alloc(size_t size);
 void _chunk_assert(_chunk_hdr_t *c);
 
 # ifdef _MALLOC_DEBUG
-void _print_malloc_info(void);
+void _debug_print_malloc_info(void);
 void _debug_show_alloc(void);
+void _debug_global_check(void);
 # endif
 
 #endif

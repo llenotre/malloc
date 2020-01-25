@@ -30,7 +30,7 @@ void *realloc(void *ptr, const size_t size)
 	if(c->next && !c->next->used)
 	{
 		// TODO Check if next chunk is large enough
-		// TODO Shrink/eat next chunk
+		// TODO Shrink/eat next chunk (and unlink it)
 		return ptr;
 	}
 	if(!(p = malloc(size)))

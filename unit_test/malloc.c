@@ -1,5 +1,6 @@
 #include <tester_lib.h>
 #include "../src/malloc.h"
+#include "../src/malloc_internal.h"
 
 #define ALIGN		16
 #define ALLOC_COUNT	100
@@ -72,6 +73,9 @@ OIL_TEST(linear_list_free_test)
 		free(arr[i++]);
 	OIL_PASS();
 }
+
+// TODO rm
+#include <stdio.h>
 
 OIL_TEST(linear_medium_test)
 {
@@ -190,6 +194,27 @@ OIL_TEST(intertwined_free_test)
 	OIL_PASS();
 }
 
+#undef ALLOC_COUNT
+#define ALLOC_COUNT 4096
+
+OIL_TEST(small_medium_large_test)
+{
+	size_t i = 0;
+	void *arr[ALLOC_COUNT];
+
+	while(i < ALLOC_COUNT)
+	{
+		if(!(arr[i] = malloc((i + 1) * 128)))
+			OIL_FAIL();
+		memset(arr[i], 0xff, (i + 1) * 128);
+		++i;
+	}
+	i = 0;
+	while(i < ALLOC_COUNT)
+		free(arr[i++]);
+	OIL_PASS();
+}
+
 void oil_prepare_tests(void)
 {
 	OIL_TEST_REGISTER(null_test);
@@ -206,4 +231,6 @@ void oil_prepare_tests(void)
 
 	OIL_TEST_REGISTER(stack_free_test);
 	OIL_TEST_REGISTER(intertwined_free_test);
+
+	OIL_TEST_REGISTER(small_medium_large_test);
 }
