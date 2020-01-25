@@ -198,12 +198,8 @@ void _bucket_link(_free_chunk_t *chunk)
 	_free_chunk_t **bucket;
 
 	printf("bucket link %p\n", chunk);
-	if(!(bucket = _get_bucket(chunk->hdr.length, 1,
-		_block_get_bin(chunk->hdr.block) == &_medium_bin)))
-	{
-		// TODO Error?
-		return;
-	}
+	bucket = _get_bucket(chunk->hdr.length, 1,
+		_block_get_bin(chunk->hdr.block) == &_medium_bin);
 	chunk->prev_free = NULL;
 	if((chunk->next_free = *bucket))
 		chunk->next_free->prev_free = chunk;
@@ -219,9 +215,13 @@ void _bucket_unlink(_free_chunk_t *chunk)
 	size_t i;
 
 	printf("bucket unlink %p\n", chunk);
+	// TODO Check block type instead of checking both small and medium?
 	for(i = 0; i < _SMALL_BUCKETS_COUNT; ++i)
 		if(_small_buckets[i] == chunk)
 			_small_buckets[i] = chunk->next_free;
+	for(i = 0; i < _MEDIUM_BUCKETS_COUNT; ++i)
+		if(_medium_buckets[i] == chunk)
+			_medium_buckets[i] = chunk->next_free;
 	if(chunk->prev_free)
 		chunk->prev_free->next_free = chunk->next_free;
 	if(chunk->next_free)
@@ -240,11 +240,11 @@ static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 	_free_chunk_t *new_chunk;
 	size_t new_len, l;
 
-	printf("alloc chunk: %p\n", chunk);
+	printf("alloc chunk: %p %p\n", chunk, &chunk->hdr.magic);
 #ifdef _MALLOC_CHUNK_MAGIC
 	if(chunk->hdr.magic != _MALLOC_CHUNK_MAGIC)
 	{
-		dprintf(STDERR_FILENO, "abort: %s(): corrupted block\n", __func__);
+		dprintf(STDERR_FILENO, "abort: %s(): corrupted chunk\n", __func__);
 		abort();
 	}
 #endif

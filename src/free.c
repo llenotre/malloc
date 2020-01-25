@@ -33,6 +33,7 @@ void free(void *ptr)
 	if(!ptr)
 		return;
 	c = GET_CHUNK(ptr);
+	printf("free chunk %p\n", c);
 	_chunk_assert(c);
 	c->used = 0;
 	_bucket_link((_free_chunk_t *) c);
