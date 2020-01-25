@@ -5,9 +5,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-// TODO rm
-#define _MALLOC_DEBUG_SHOW_FREE
-
 #ifdef _MALLOC_DEBUG
 extern _block_t *_small_bin;
 extern _block_t *_medium_bin;
@@ -84,6 +81,9 @@ void _debug_show_alloc(void)
 }
 
 // TODO Check for loops
+/*
+ * Checks if the given block is in inconsistent state.
+ */
 static void _check_block(const char *bin, _block_t *b)
 {
 	_chunk_hdr_t *c;
@@ -97,33 +97,33 @@ static void _check_block(const char *bin, _block_t *b)
 		{
 			dprintf(STDERR_FILENO, "%s bin contains corrupted element %p\n",
 				bin, c);
-			exit(1);
+			abort();
 		}
 # endif
 		if(c->prev == c || c->next == c || (c->prev && c->prev == c->next))
 		{
 			dprintf(STDERR_FILENO, "%s bin contains small loop at %p\n",
 				bin, c);
-			exit(1);
+			abort();
 		}
 		if((c->prev && c->prev->next != c) || (c->next && c->next->prev != c))
 		{
 			dprintf(STDERR_FILENO, "%s bin has broken linked list at %p\n",
 				bin, c);
-			exit(1);
+			abort();
 		}
 		if((c->prev && c->prev >= c) || (c->next && c->next <= c))
 		{
 			dprintf(STDERR_FILENO, "%s bin has non-linear linked list at %p\n",
 				bin, c);
-			exit(1);
+			abort();
 		}
 		if(!c->used
 			&& ((c->prev && !c->prev->used) || (c->next && !c->next->used)))
 		{
 			dprintf(STDERR_FILENO, "%s bin has non-linear linked list at %p\n",
 				bin, c);
-			exit(1);
+			abort();
 		}
 		end = CHUNK_DATA(c) + c->length;
 		if((!c->next && !IS_ALIGNED(end, _get_page_size()))
@@ -132,14 +132,16 @@ static void _check_block(const char *bin, _block_t *b)
 			dprintf(STDERR_FILENO, "%s bin has %s at %p (%ju)\n",
 				bin, ((void *) c->next < end ? "gap" : "overlap"), c,
 					(intptr_t) end - (intptr_t) c->next);
-			exit(1);
+			abort();
 		}
 		c = c->next;
 	}
 }
 
 // TODO Check chunks size
-
+/*
+ * Checks if the given bucket chunk is in inconsistent state.
+ */
 static void _check_bucket(const char *bucket_type, const size_t bucket_id,
 	_free_chunk_t *c)
 {
@@ -152,7 +154,7 @@ static void _check_bucket(const char *bucket_type, const size_t bucket_id,
 		{
 			dprintf(STDERR_FILENO, "%s bucket %zu contains corrupted element at\
  %zu (%p)\n", bucket_type, bucket_id, n, c);
-			exit(1);
+			abort();
 		}
 # endif
 		if(c->hdr.used)
@@ -174,6 +176,9 @@ static void _check_bucket(const char *bucket_type, const size_t bucket_id,
 	}
 }
 
+/*
+ * Checks if any bin, bucket or chunk is in inconsistent state.
+ */
 void _debug_global_check(void)
 {
 	_block_t *b;

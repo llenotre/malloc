@@ -1,6 +1,5 @@
 #include <tester_lib.h>
 #include "../src/malloc.h"
-#include "../src/malloc_internal.h"
 
 #define ALIGN		16
 #define ALLOC_COUNT	100

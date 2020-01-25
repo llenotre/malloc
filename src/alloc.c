@@ -207,7 +207,6 @@ void _bucket_link(_free_chunk_t *chunk)
 /*
  * Unlinks the given free chunk from its bucket.
  */
-// TODO Handle medium
 void _bucket_unlink(_free_chunk_t *chunk)
 {
 	size_t i;
@@ -228,16 +227,60 @@ void _bucket_unlink(_free_chunk_t *chunk)
 }
 
 /*
+ * Splits the given chunk into two chunks. The first chunk will take size `size`
+ * and the second chunk will take the remaining space.
+ * Note that the function might do nothing if the chunk isn't large enough to be
+ * split.
+ */
+void _split_chunk(_chunk_hdr_t *chunk, size_t size)
+{
+	_free_chunk_t *new_chunk;
+	size_t l;
+
+	size = MAX(ALIGNMENT, size);
+	new_chunk = (_free_chunk_t *) UP_ALIGN(CHUNK_DATA(chunk) + size, ALIGNMENT);
+	if(chunk->length <= size + CHUNK_HDR_SIZE + ALIGNMENT)
+		return;
+	l = chunk->length;
+	chunk->length = size;
+	if(!chunk->used)
+	{
+		_bucket_unlink((_free_chunk_t *) chunk);
+		_bucket_link((_free_chunk_t *) chunk);
+	}
+	if((new_chunk->hdr.next = (_chunk_hdr_t *) chunk->next))
+		new_chunk->hdr.next->prev = (_chunk_hdr_t *) new_chunk;
+	if((new_chunk->hdr.prev = (_chunk_hdr_t *) chunk))
+		new_chunk->hdr.prev->next = (_chunk_hdr_t *) new_chunk;
+	new_chunk->hdr.block = chunk->block;
+	new_chunk->hdr.length = l - (size + CHUNK_HDR_SIZE);
+	new_chunk->hdr.used = 0;
+#ifdef _MALLOC_CHUNK_MAGIC
+	new_chunk->hdr.magic = _MALLOC_CHUNK_MAGIC;
+#endif
+	_bucket_link(new_chunk);
+}
+
+/*
+ * Merges the given chunk with the following chunk.
+ */
+void _merge_chunks(_chunk_hdr_t *c)
+{
+	if(!c->next->used)
+		_bucket_unlink((_free_chunk_t *) c->next);
+	c->length += CHUNK_HDR_SIZE + c->next->length;
+	if((c->next = c->next->next))
+		c->next->prev = c;
+}
+
+/*
  * Allocates the given chunk for size `size`. The given chunk must be large
  * enough to fit the allocation. Chunk might be split to another free chunk
  * if large enough. The new free chunk might be inserted in buckets for
  * further allocations.
  */
-static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
+static void _alloc_chunk(_free_chunk_t *chunk, const size_t size)
 {
-	_free_chunk_t *new_chunk;
-	size_t l;
-
 #ifdef _MALLOC_CHUNK_MAGIC
 	if(chunk->hdr.magic != _MALLOC_CHUNK_MAGIC)
 	{
@@ -252,23 +295,7 @@ static void _alloc_chunk(_free_chunk_t *chunk, size_t size)
 	}
 	_bucket_unlink(chunk);
 	chunk->hdr.used = 1;
-	size = MAX(ALIGNMENT, size);
-	new_chunk = (_free_chunk_t *) UP_ALIGN(CHUNK_DATA(chunk) + size, ALIGNMENT);
-	if(chunk->hdr.length <= size + CHUNK_HDR_SIZE + ALIGNMENT)
-		return;
-	l = chunk->hdr.length;
-	chunk->hdr.length = size;
-	if((new_chunk->hdr.next = (_chunk_hdr_t *) chunk->hdr.next))
-		new_chunk->hdr.next->prev = (_chunk_hdr_t *) new_chunk;
-	if((new_chunk->hdr.prev = (_chunk_hdr_t *) chunk))
-		new_chunk->hdr.prev->next = (_chunk_hdr_t *) new_chunk;
-	new_chunk->hdr.block = chunk->hdr.block;
-	new_chunk->hdr.length = l - (size + CHUNK_HDR_SIZE);
-	new_chunk->hdr.used = 0;
-#ifdef _MALLOC_CHUNK_MAGIC
-	new_chunk->hdr.magic = _MALLOC_CHUNK_MAGIC;
-#endif
-	_bucket_link(new_chunk);
+	_split_chunk(&chunk->hdr, size);
 }
 
 /*
@@ -334,8 +361,8 @@ void *_large_alloc(const size_t size)
 }
 
 /*
- * Checks validity of the given chunk. If the chunk is invalid, prints an error
- * message and aborts.
+ * Checks that the given chunk is valid for reallocation/freeing.
+ * If the chunk is invalid, prints an error message and aborts.
  */
 void _chunk_assert(_chunk_hdr_t *c)
 {

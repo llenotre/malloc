@@ -2,6 +2,35 @@
 #include "malloc_internal.h"
 
 /*
+ * Shrinks the given `chunk` to the specified `size`. `size` must be lower than
+ * the size of the chunk. Shrinking the chunk might create a new unused chunk
+ * that might be merged with the following chunk.
+ */
+static void _shrink_chunk(_used_chunk_t *chunk, const size_t size)
+{
+	_chunk_hdr_t *next;
+
+	_split_chunk(&chunk->hdr, size);
+	next = chunk->hdr.next;
+	if(!next || !next->next)
+		return;
+	if(next->used || next->next->used)
+		return;
+	_merge_chunks(next);
+}
+
+/*
+ * Increases the size of the chunk by eating the next chunk. The chunk will take
+ * the size `size`. Next chunk will shrink if enough space is remaining, else
+ * it might disapear.
+ */
+static void _eat_chunk(_used_chunk_t *chunk, const size_t size)
+{
+	_merge_chunks(&chunk->hdr);
+	_split_chunk(&chunk->hdr, size);
+}
+
+/*
  * If `ptr` is `NULL` and `size` is not zero, the function is equivalent to
  * `malloc`. If `size` is zero and `ptr` is not NULL, the function is equivalent
  * to free.
@@ -26,11 +55,14 @@ void *realloc(void *ptr, const size_t size)
 	c = GET_CHUNK(ptr);
 	_chunk_assert(c);
 	if(size <= c->length)
-		return ptr; // TODO Shrink chunk?
-	if(c->next && !c->next->used)
 	{
-		// TODO Check if next chunk is large enough
-		// TODO Shrink/eat next chunk (and unlink it)
+		_shrink_chunk((_used_chunk_t *) c, size);
+		return ptr;
+	}
+	if(c->next && !c->next->used
+		&& (c->next->length + CHUNK_HDR_SIZE) - c->length >= size)
+	{
+		_eat_chunk((_used_chunk_t *) c, size);
 		return ptr;
 	}
 	if(!(p = malloc(size)))
