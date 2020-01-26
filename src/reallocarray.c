@@ -8,6 +8,7 @@
  * If the multiplication overflows, `realloc` isn't called and `NULL` is
  * returned.
  */
+__attribute__((malloc))
 void *reallocarray(void *ptr, const size_t nmemb, const size_t size)
 {
 	size_t n;

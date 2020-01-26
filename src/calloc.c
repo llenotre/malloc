@@ -7,6 +7,7 @@
  * If the multiplication overflows, `malloc` isn't called and `NULL` is
  * returned.
  */
+__attribute__((malloc))
 void *calloc(const size_t nmemb, const size_t size)
 {
 	size_t n;

@@ -15,7 +15,7 @@ void free(void *ptr)
 {
 	_chunk_hdr_t *c;
 
-	if(!ptr)
+	if(unlikely(!ptr))
 		return;
 	c = GET_CHUNK(ptr);
 	_chunk_assert(c);

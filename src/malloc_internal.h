@@ -57,6 +57,9 @@
 
 # define GET_CHUNK(ptr)		((void *) ((void *) (ptr) - CHUNK_DATA(NULL)))
 
+# define likely(n)			__builtin_expect(!!(n), 1)
+# define unlikely(n)		__builtin_expect(!!(n), 0)
+
 typedef struct _block _block_t;
 
 /*
@@ -104,7 +107,6 @@ typedef struct _block
 } _block_t;
 
 size_t _get_page_size(void);
-
 void *_alloc_pages(size_t n);
 void _free_pages(void *addr, size_t n);
 
@@ -114,9 +116,11 @@ void _free_block(_block_t *b);
 
 void _bucket_link(_free_chunk_t *chunk);
 void _bucket_unlink(_free_chunk_t *chunk);
+_free_chunk_t **_get_bucket(size_t size, int insert, int medium);
 
 void _split_chunk(_chunk_hdr_t *chunk, size_t size);
 void _merge_chunks(_chunk_hdr_t *c);
+void _alloc_chunk(_free_chunk_t *chunk, size_t size);
 
 void *_small_alloc(size_t size);
 void *_medium_alloc(size_t size);

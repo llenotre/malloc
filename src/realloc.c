@@ -40,6 +40,7 @@ static void _eat_chunk(_used_chunk_t *chunk, const size_t size)
  * allocated, the data from the old chunk will be copied to the new one and
  * the old one will be freed.
  */
+__attribute__((malloc))
 void *realloc(void *ptr, const size_t size)
 {
 	_chunk_hdr_t *c;

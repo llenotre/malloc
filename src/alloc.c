@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/mman.h>
 #include <unistd.h>
 
 // TODO Do not use printf/dprintf for errors printing
@@ -50,50 +49,23 @@ __attribute__((section(".bss")))
 _free_chunk_t *_medium_buckets[_MEDIUM_BUCKETS_COUNT];
 
 /*
- * Returns the size in bytes of a page of memory on the current system.
+ * Links the given block to the given bin.
  */
-size_t _get_page_size(void)
+static inline void _bin_link(_block_t *block)
 {
-	static size_t page_size = 0;
+	_block_t **bin;
 
-	if(__builtin_expect((page_size == 0), 1))
-	{
-		page_size = sysconf(_SC_PAGE_SIZE);
-#ifdef _MALLOC_DEBUG
-		dprintf(STDERR_FILENO, "malloc: page size: %zu bytes\n", page_size);
-		_debug_print_malloc_info();
-#endif
-	}
-	if(page_size == 0)
-	{
-		dprintf(STDERR_FILENO, "abort: _SC_PAGE_SIZE == 0\n");
-		abort();
-	}
-	return page_size;
-}
-
-/*
- * Asks the kernel for `n` pages and returns the pointer to the beginning
- * of the allocated region of memory.
- */
-void *_alloc_pages(const size_t n)
-{
-	return mmap(NULL, n * _get_page_size(),
-		PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-}
-
-/*
- * Frees the given region of `n` memory pages starting at `addr`.
- */
-void _free_pages(void *addr, const size_t n)
-{
-	munmap(addr, n * _get_page_size());
+	bin = _block_get_bin(block);
+	if((block->next = *bin))
+		block->next->prev = block;
+	*bin = block;
 }
 
 /*
  * Allocates a `pages` pages long block of memory and creates a chunk on it that
  * covers the whole block.
  */
+__attribute__((malloc))
 _block_t *_alloc_block(const size_t pages)
 {
 	_block_t *b;
@@ -110,9 +82,13 @@ _block_t *_alloc_block(const size_t pages)
 #ifdef _MALLOC_CHUNK_MAGIC
 	first_chunk->magic = _MALLOC_CHUNK_MAGIC;
 #endif
+	_bin_link(b);
 	return b;
 }
 
+/*
+ * Returns a pointer to the bin for the given block.
+ */
 _block_t **_block_get_bin(_block_t *b)
 {
 	if(b->pages <= _SMALL_BLOCK_PAGES)
@@ -141,24 +117,11 @@ void _free_block(_block_t *b)
 }
 
 /*
- * Links the given block to the given bin.
- */
-static inline void _bin_link(_block_t *block)
-{
-	_block_t **bin;
-
-	bin = _block_get_bin(block);
-	if((block->next = *bin))
-		block->next->prev = block;
-	*bin = block;
-}
-
-/*
  * Returns a small bucket containing chunks large enough to fit an allocation of
  * the given `size`. If `insert` is not zero, the function will return the first
  * bucket that fits even if empty to allow insertion of a new free chunk.
  */
-static _free_chunk_t **_get_bucket(const size_t size, const int insert,
+_free_chunk_t **_get_bucket(const size_t size, const int insert,
 	const int medium)
 {
 	_free_chunk_t **buckets;
@@ -279,16 +242,16 @@ void _merge_chunks(_chunk_hdr_t *c)
  * if large enough. The new free chunk might be inserted in buckets for
  * further allocations.
  */
-static void _alloc_chunk(_free_chunk_t *chunk, const size_t size)
+void _alloc_chunk(_free_chunk_t *chunk, const size_t size)
 {
 #ifdef _MALLOC_CHUNK_MAGIC
-	if(chunk->hdr.magic != _MALLOC_CHUNK_MAGIC)
+	if(unlikely(chunk->hdr.magic != _MALLOC_CHUNK_MAGIC))
 	{
 		dprintf(STDERR_FILENO, "abort: %s(): corrupted chunk\n", __func__);
 		abort();
 	}
 #endif
-	if(chunk->hdr.used || chunk->hdr.length < size)
+	if(unlikely(chunk->hdr.used || chunk->hdr.length < size))
 	{
 		dprintf(STDERR_FILENO, "abort: %s(): internal error\n", __func__);
 		abort();
@@ -299,81 +262,19 @@ static void _alloc_chunk(_free_chunk_t *chunk, const size_t size)
 }
 
 /*
- * Handles a small allocation.
- */
-void *_small_alloc(const size_t size)
-{
-	_free_chunk_t **bucket;
-	_block_t *b;
-	_free_chunk_t *chunk;
-
-	if(!(bucket = _get_bucket(size, 0, 0)) || !*bucket)
-	{
-		if(!(b = _alloc_block(_SMALL_BLOCK_PAGES)))
-			return NULL;
-		_bin_link(b);
-		chunk = BLOCK_DATA(b);
-	}
-	else
-		chunk = *bucket;
-	_alloc_chunk(chunk, size);
-	return CHUNK_DATA(chunk);
-}
-
-/*
- * Handles a medium allocation.
- */
-void *_medium_alloc(const size_t size)
-{
-	_free_chunk_t **bucket;
-	_block_t *b;
-	_free_chunk_t *chunk;
-
-	if(!(bucket = _get_bucket(size, 0, 1)) || !*bucket)
-	{
-		if(!(b = _alloc_block(_MEDIUM_BLOCK_PAGES)))
-			return NULL;
-		_bin_link(b);
-		chunk = BLOCK_DATA(b);
-	}
-	else
-		chunk = *bucket;
-	_alloc_chunk(chunk, size);
-	return CHUNK_DATA(chunk);
-}
-
-/*
- * Handles a large allocation.
- */
-void *_large_alloc(const size_t size)
-{
-	size_t min_size;
-	_block_t *b;
-	_chunk_hdr_t *first_chunk;
-
-	min_size = BLOCK_HDR_SIZE + CHUNK_HDR_SIZE + size;
-	if(!(b = _alloc_block(CEIL_DIVISION(min_size, _get_page_size()))))
-		return NULL;
-	_bin_link(b);
-	first_chunk = BLOCK_DATA(b);
-	first_chunk->used = 1;
-	return CHUNK_DATA(first_chunk);
-}
-
-/*
  * Checks that the given chunk is valid for reallocation/freeing.
  * If the chunk is invalid, prints an error message and aborts.
  */
 void _chunk_assert(_chunk_hdr_t *c)
 {
 #ifdef _MALLOC_CHUNK_MAGIC
-	if(c->magic != _MALLOC_CHUNK_MAGIC)
+	if(unlikely(c->magic != _MALLOC_CHUNK_MAGIC))
 	{
 		dprintf(STDERR_FILENO, "abort: corrupted chunk\n");
 		abort();
 	}
 #endif
-	if(!c->used)
+	if(unlikely(!c->used))
 	{
 		dprintf(STDERR_FILENO,
 			"abort: pointer %p was not allocated\n", CHUNK_DATA(c));
