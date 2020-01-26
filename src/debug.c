@@ -51,14 +51,14 @@ static size_t debug_print(const char *str, _block_t *b)
 # ifdef _MALLOC_DEBUG_SHOW_FREE
 				dprintf(STDERR_FILENO, "%p - %p: %zu bytes (%s)\n",
 					((_used_chunk_t *) c)->data,
-						((_used_chunk_t *) c)->data + c->length, c->length,
+						((_used_chunk_t *) c)->data + c->size, c->size,
 							(c->used ? "used" : "free"));
 # else
 				dprintf(STDERR_FILENO, "%p - %p: %zu bytes\n",
 					((_used_chunk_t *) c)->data,
-						((_used_chunk_t *) c)->data + c->length, c->length);
+						((_used_chunk_t *) c)->data + c->size, c->size);
 # endif
-				total += c->length;
+				total += c->size;
 			}
 			c = c->next;
 		}
@@ -125,7 +125,7 @@ static void _check_block(const char *bin, _block_t *b)
 				bin, c);
 			abort();
 		}
-		end = CHUNK_DATA(c) + c->length;
+		end = CHUNK_DATA(c) + c->size;
 		if((!c->next && !IS_ALIGNED(end, _get_page_size()))
 			|| (c->next && c->next != end))
 		{
