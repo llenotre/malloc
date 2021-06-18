@@ -43,10 +43,17 @@ _block_t *_large_bin = NULL;
  * A chunk must be at least `n` bytes large to fit in a bucket, where
  * n=_FIRST_SMALL_BUCKET_SIZE * 2^i . Here, `i` is the index in the array.
  */
+# ifdef __APPLE__
+__attribute__((section("__BSS,.bss")))
+_free_chunk_t *_small_buckets[_SMALL_BUCKETS_COUNT];
+__attribute__((section("__BSS,.bss")))
+_free_chunk_t *_medium_buckets[_MEDIUM_BUCKETS_COUNT];
+# else
 __attribute__((section(".bss")))
 _free_chunk_t *_small_buckets[_SMALL_BUCKETS_COUNT];
 __attribute__((section(".bss")))
 _free_chunk_t *_medium_buckets[_MEDIUM_BUCKETS_COUNT];
+# endif
 
 /*
  * Links the given block to the given bin.

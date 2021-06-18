@@ -1,6 +1,9 @@
-NAME = crumalloc.a
-AR = ar
-ARFLAGS = rc
+HOSTTYPE ?=
+ifeq ($(HOSTTYPE),)
+	HOSTTYPE := $(shell uname -m)_$(shell uname -s)
+endif
+NAME = libft_malloc_$(HOSTTYPE).so
+
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror -Wno-unused-result\
 	-D _MALLOC_DEBUG -D _MALLOC_DEBUG_SHOW_FREE -D _MALLOC_CONFLICT -g3
@@ -21,7 +24,7 @@ $(OBJ_DIRS):
 	mkdir -p $(OBJ_DIRS)
 
 $(NAME): $(OBJ_DIRS) $(OBJ)
-	$(AR) $(ARFLAGS) $@ $(OBJ)
+	$(CC) -shared $(CFLAGS) -o $@ $(OBJ)
 
 $(OBJ_DIR)%.o: $(SRC_DIR)%.c $(HDR)
 	$(CC) $(CFLAGS) -o $@ -c $<
@@ -37,11 +40,5 @@ fclean: clean
 	rm tags
 
 re: fclean all
-
-unit_test/%.test: unit_test/%.c $(NAME)
-	$(CC) $(CFLAGS) $< $(NAME) ../oil_/tester_lib.a -o $@ -I ../oil_/src/tester_lib/
-
-test: $(UNIT_TESTS:.c=.test)
-	sh ../oil_/src/tester.sh unit_test/
 
 .PHONY: all clean fclean re
