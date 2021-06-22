@@ -28,7 +28,6 @@ size_t _get_page_size(void)
 		page_size = sysconf(_SC_PAGE_SIZE);
 #ifdef _MALLOC_DEBUG
 		dprintf(STDERR_FILENO, "malloc: page size: %zu bytes\n", page_size);
-		_debug_print_malloc_info();
 #endif
 	}
 	if(unlikely(page_size == 0))

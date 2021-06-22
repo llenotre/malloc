@@ -1,7 +1,6 @@
 #include "malloc.h"
 #include "malloc_internal.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -14,33 +13,59 @@ extern _free_chunk_t *_small_buckets[_SMALL_BUCKETS_COUNT];
 extern _free_chunk_t *_medium_buckets[_MEDIUM_BUCKETS_COUNT];
 
 /*
- * Prints global informations.
+ * Returns the length of the given string.
  */
-void _debug_print_malloc_info(void)
+static size_t ft_strlen(const char *s)
 {
-	size_t i;
+	size_t n = 0;
 
-	dprintf(STDERR_FILENO, "Small buckets (max: %zu):\n", _SMALL_BIN_MAX);
-	for(i = 0; i < _SMALL_BUCKETS_COUNT; ++i)
-		dprintf(STDERR_FILENO, " %zu", (size_t) _FIRST_SMALL_BUCKET_SIZE << i);
-	dprintf(STDERR_FILENO, "\nMedium buckets (max: %zu):\n", _MEDIUM_BIN_MAX);
-	for(i = 0; i < _MEDIUM_BUCKETS_COUNT; ++i)
-		dprintf(STDERR_FILENO, " %zu", (size_t) _FIRST_MEDIUM_BUCKET_SIZE << i);
-	dprintf(STDERR_FILENO, "\nSmall block pages: %zu\n", _SMALL_BLOCK_PAGES);
-	dprintf(STDERR_FILENO, "Medium block pages: %zu\n", _MEDIUM_BLOCK_PAGES);
+	while(s[n])
+		++n;
+	return n;
+}
+
+/*
+ * Prints the given string onto the standard output.
+ */
+static void ft_putstr(const char *s)
+{
+	write(1, s, ft_strlen(s));
+}
+
+/*
+ * Prints the given number onto the standard output with the given base.
+ */
+static void ft_putnbr(uint64_t n, uint8_t base)
+{
+	if(n >= base) {
+		ft_putnbr(n / base);
+	}
+
+	uint64_t digit = n % base;
+	char c;
+	if digit < base {
+		c = '0' + digit;
+	} else {
+		c = 'a' + (digit - base);
+	}
+	write(1, &c, 1);
 }
 
 /*
  * Prints chunks lists for the specified block.
  */
-static size_t debug_print(const char *str, _block_t *b)
+static size_t debug_print(const char *name, _block_t *b)
 {
 	_chunk_hdr_t *c;
 	size_t total = 0;
 
 	while(b)
 	{
-		dprintf(STDERR_FILENO, "%s: %p\n", str, b);
+		ft_putstr(name);
+		ft_putstr(" : 0x");
+		ft_putnbr((uint64_t) b, 16);
+		ft_putstr("\n");
+
 		c = BLOCK_DATA(b);
 		while(c)
 		{
@@ -58,26 +83,31 @@ static size_t debug_print(const char *str, _block_t *b)
 					((_used_chunk_t *) c)->data,
 						((_used_chunk_t *) c)->data + c->size, c->size);
 # endif
+
 				total += c->size;
 			}
+
 			c = c->next;
 		}
+
 		b = b->next;
 	}
+
 	return total;
 }
 
 /*
  * Prints blocks with memory along with their type and the list of chunks inside
  */
-void _debug_show_alloc(void)
+void show_alloc_mem()
 {
 	size_t total = 0;
 
-	total += debug_print("SMALL", _small_bin);
-	total += debug_print("MEDIUM", _medium_bin);
+	// Renamed to match the subject
+	total += debug_print("TINY", _small_bin);
+	total += debug_print("SMALL", _medium_bin);
 	total += debug_print("LARGE", _large_bin);
-	dprintf(STDERR_FILENO, "Total: %zu bytes\n", total);
+	dprintf(STDERR_FILENO, "Total : %zu bytes\n", total);
 }
 
 // TODO Check for loops
